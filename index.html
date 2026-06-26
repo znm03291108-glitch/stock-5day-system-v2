@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>5日线强势股交易纪律系统 V2.0</title>
+  <style>
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+      background:#0f172a;color:#e5e7eb;
+    }
+    .container{max-width:1100px;margin:0 auto;padding:16px}
+    .header{
+      background:linear-gradient(135deg,#172554,#111827);
+      border:1px solid rgba(148,163,184,.25);
+      border-radius:18px;padding:20px;margin-bottom:16px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25)
+    }
+    h1{margin:0 0 8px;font-size:24px;color:#fff}
+    h2{margin:0 0 12px;font-size:18px;color:#f8fafc}
+    p{line-height:1.7;color:#cbd5e1;font-size:14px}
+    .warn{
+      margin-top:12px;padding:10px 12px;border-radius:12px;
+      background:rgba(250,204,21,.12);
+      border:1px solid rgba(250,204,21,.35);
+      color:#fde68a;font-size:13px;line-height:1.6
+    }
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:860px){.grid{grid-template-columns:1fr}}
+    .card{
+      background:#111827;border:1px solid rgba(148,163,184,.22);
+      border-radius:16px;padding:16px;margin-bottom:16px;
+      box-shadow:0 8px 24px rgba(0,0,0,.22)
+    }
+    label{display:block;margin:12px 0 6px;color:#cbd5e1;font-size:14px}
+    input,select,textarea{
+      width:100%;padding:12px;border-radius:12px;
+      border:1px solid rgba(148,163,184,.28);
+      background:#020617;color:#f8fafc;font-size:15px;outline:none
+    }
+    input:focus,select:focus,textarea:focus{
+      border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.15)
+    }
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:560px){.row{grid-template-columns:1fr}}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{
+      border:0;border-radius:12px;padding:12px 14px;color:#fff;
+      background:#2563eb;font-weight:800;cursor:pointer;font-size:14px
+    }
+    button:hover{filter:brightness(1.08)}
+    .green{background:#16a34a}.yellow{background:#ca8a04}.red{background:#dc2626}.gray{background:#475569}
+    .result{
+      margin-top:14px;padding:14px;border-radius:14px;background:#020617;
+      border:1px solid rgba(148,163,184,.24);line-height:1.75;
+      font-size:14px;white-space:pre-wrap;overflow:auto
+    }
+    .score{font-size:42px;font-weight:900;margin:6px 0}
+    .good{color:#4ade80}.mid{color:#facc15}.bad{color:#fb7185}.blue{color:#38bdf8}
+    .pill{
+      display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;
+      margin:2px 4px 6px 0;background:rgba(59,130,246,.15);
+      color:#bfdbfe;border:1px solid rgba(59,130,246,.28)
+    }
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+    @media(max-width:700px){.stats{grid-template-columns:1fr}}
+    .stat{
+      background:#020617;border:1px solid rgba(148,163,184,.18);
+      border-radius:14px;padding:12px
+    }
+    .stat b{display:block;font-size:22px;margin-bottom:4px}
+    .stat span{color:#94a3b8;font-size:12px}
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:840px}
+    th,td{
+      padding:10px;border-bottom:1px solid rgba(148,163,184,.18);
+      text-align:left;font-size:13px;vertical-align:top
+    }
+    th{color:#cbd5e1;background:rgba(15,23,42,.75)}
+    .small{font-size:12px;color:#94a3b8;line-height:1.6}
+    .mini{padding:7px 9px;border-radius:9px;font-size:12px;margin:2px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .footer{text-align:center;color:#64748b;padding:20px 0 8px;font-size:12px}
+    .rules li{margin:6px 0;color:#cbd5e1;line-height:1.7}
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>5日线强势股交易纪律系统 V2.0</h1>
+    <p>输入股票代码，自动获取日K数据，计算5日线、10日线、20日线、成交量、放量、大阳线、距离5日线、连续跌破天数，并按你的交易纪律给出建议。</p>
+    <div class="warn">风险提示：本系统是交易纪律辅助工具，不是荐股软件，不保证盈利。数据源可能延迟、缺失或接口变动，真实交易前必须自行核对行情。</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>一、自动行情分析</h2>
+      <p class="small">A股代码示例：300592、000001、600519、688981。默认后端地址为当前域名，如果你前端和后端分开部署，需要填写 Railway 后端地址。</p>
+
+      <label>后端地址</label>
+      <input id="apiBase" placeholder="例如：https://你的项目.up.railway.app，留空默认当前域名" />
+
+      <div class="row">
+        <div>
+          <label>股票代码</label>
+          <input id="symbol" placeholder="例如：300592" value="300592"/>
+        </div>
+        <div>
+          <label>复权方式</label>
+          <select id="adjust">
+            <option value="">不复权</option>
+            <option value="qfq">前复权</option>
+            <option value="hfq">后复权</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="btns">
+        <button onclick="analyze()">获取数据并分析</button>
+        <button class="green" onclick="saveWatch()">保存到观察池</button>
+        <button class="gray" onclick="clearResult()">清空结果</button>
+      </div>
+
+      <div id="mainResult" class="result">等待输入股票代码...</div>
+    </div>
+
+    <div class="card">
+      <h2>二、系统规则</h2>
+      <ul class="rules">
+        <li>第一：没有超过5个点的票不看，没有主力。</li>
+        <li>第二：主力拉出大阳线之后，股价回踩5日线进场。</li>
+        <li>第三：股价远离5日线先买一半，等回踩5日线再接回来。</li>
+        <li>第四：下午2:50跌破5日线减一半仓，保护本金，重新站上再接回来。</li>
+        <li>第五：跌破5日线连续3天没有重新站上，果断卖掉。</li>
+      </ul>
+
+      <div class="stats">
+        <div class="stat"><b id="sScore">0</b><span>当前评分</span></div>
+        <div class="stat"><b id="sWatch">0</b><span>观察池</span></div>
+        <div class="stat"><b id="sRisk">0</b><span>风险项</span></div>
+      </div>
+
+      <div class="result">
+口诀：
+五点以上才关注，
+放量大阳看主力，
+回踩五线再进场，
+远离五线买半仓，
+尾盘跌破先减半，
+三天不回就清仓。
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>三、自动分析详情</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>指标</th>
+            <th>数值</th>
+            <th>判断</th>
+          </tr>
+        </thead>
+        <tbody id="detailTable">
+          <tr><td colspan="3" class="small">暂无数据。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>四、观察池</h2>
+    <p class="small">数据保存在当前浏览器本地。换手机、换浏览器或清理缓存后可能丢失。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>股票</th>
+            <th>代码</th>
+            <th>收盘价</th>
+            <th>涨幅</th>
+            <th>MA5</th>
+            <th>距5日线</th>
+            <th>评分</th>
+            <th>建议</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="watchTable">
+          <tr><td colspan="10" class="small">暂无观察股票。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>五、部署检测</h2>
+    <div class="btns">
+      <button class="gray" onclick="health()">检测后端是否正常</button>
+      <button class="red" onclick="clearAll()">清空观察池</button>
+    </div>
+    <div id="healthResult" class="result">点击检测后端。</div>
+  </div>
+
+  <div class="footer">5日线强势股交易纪律系统 V2.0 · 自动行情分析版</div>
+</div>
+
+<script>
+let lastAnalysis = null;
+const STORE = "stock5_v2_watch";
+
+function apiBase(){
+  const v = document.getElementById("apiBase").value.trim();
+  if(v) return v.replace(/\/$/, "");
+  return window.location.origin;
+}
+
+function fmt(v, d=2){
+  if(v === null || v === undefined || Number.isNaN(Number(v))) return "-";
+  return Number(v).toFixed(d);
+}
+function cls(v){
+  if(v === null || v === undefined) return "";
+  return Number(v) >= 0 ? "good" : "bad";
+}
+function load(){
+  try{return JSON.parse(localStorage.getItem(STORE) || "[]")}catch(e){return []}
+}
+function save(data){
+  localStorage.setItem(STORE, JSON.stringify(data));
+}
+function today(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+async function health(){
+  const box = document.getElementById("healthResult");
+  box.textContent = "正在检测...";
+  try{
+    const res = await fetch(apiBase()+"/api/health");
+    const data = await res.json();
+    box.textContent = JSON.stringify(data, null, 2);
+  }catch(e){
+    box.textContent = "后端连接失败：\n" + e.message + "\n\n如果你是 GitHub Pages 前端，请在“后端地址”填写 Railway 地址。";
+  }
+}
+
+async function analyze(){
+  const symbol = document.getElementById("symbol").value.trim();
+  const adjust = document.getElementById("adjust").value;
+  const box = document.getElementById("mainResult");
+  if(!symbol){ alert("请输入股票代码"); return; }
+
+  box.textContent = "正在获取行情并计算指标，请稍等...";
+  document.getElementById("detailTable").innerHTML = `<tr><td colspan="3" class="small">加载中...</td></tr>`;
+
+  try{
+    const url = `${apiBase()}/api/analyze?symbol=${encodeURIComponent(symbol)}&adjust=${encodeURIComponent(adjust)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if(!res.ok || data.error){
+      throw new Error(data.error || "接口返回异常");
+    }
+    lastAnalysis = data;
+    renderAnalysis(data);
+  }catch(e){
+    box.textContent = "分析失败：\n" + e.message + "\n\n常见原因：\n1. Railway 后端没有启动\n2. 后端地址没填对\n3. 股票代码错误\n4. AKShare 数据源暂时不可用";
+    document.getElementById("detailTable").innerHTML = `<tr><td colspan="3" class="bad">分析失败：${e.message}</td></tr>`;
+  }
+}
+
+function renderAnalysis(d){
+  const a = d.analysis;
+  const q = d.quote;
+  const signals = d.signals || {};
+  const advice = d.advice || {};
+  const score = d.score || 0;
+
+  document.getElementById("sScore").textContent = score;
+
+  const scoreClass = score >= 8 ? "good" : score >= 6 ? "mid" : "bad";
+  const tags = [
+    signals.rise_over_5 ? "涨幅超过5%" : "涨幅不足5%",
+    signals.volume_breakout ? "放量" : "未明显放量",
+    signals.big_yang ? "大阳线" : "非大阳线",
+    signals.above_ma5 ? "站上5日线" : "跌破/未站上5日线",
+    signals.far_from_ma5 ? "远离5日线" : "未远离5日线"
+  ].map(x=>`<span class="pill">${x}</span>`).join("");
+
+  document.getElementById("mainResult").innerHTML =
+`股票：${d.name || "-"} ${d.symbol}
+交易日：${q.date}
+收盘价：${fmt(q.close)}
+今日涨幅：<span class="${cls(q.pct_chg)}">${fmt(q.pct_chg)}%</span>
+MA5：${fmt(a.ma5)}　MA10：${fmt(a.ma10)}　MA20：${fmt(a.ma20)}
+成交量：${fmt(q.volume,0)}　5日均量：${fmt(a.vol_ma5,0)}
+距5日线：<span class="${cls(a.distance_ma5_pct)}">${fmt(a.distance_ma5_pct)}%</span>
+连续跌破5日线：${a.below_ma5_days} 天
+
+<div class="score ${scoreClass}">${score} 分</div>
+${tags}
+
+系统结论：${advice.level}
+操作建议：${advice.action}
+仓位建议：${advice.position}
+风控提醒：${advice.risk}`;
+
+  const rows = [
+    ["今日涨幅", fmt(q.pct_chg)+"%", signals.rise_over_5 ? "超过5%，符合第一条件" : "不足5%，不看"],
+    ["K线强度", `开盘 ${fmt(q.open)} / 收盘 ${fmt(q.close)}`, signals.big_yang ? "收盘明显强于开盘，大阳线" : "阳线强度一般"],
+    ["5日线", fmt(a.ma5), signals.above_ma5 ? "站上5日线，短线趋势仍在" : "未站上5日线，谨慎"],
+    ["10日线", fmt(a.ma10), q.close >= a.ma10 ? "站上10日线" : "未站上10日线"],
+    ["20日线", fmt(a.ma20), q.close >= a.ma20 ? "站上20日线" : "未站上20日线"],
+    ["成交量", fmt(q.volume,0), signals.volume_breakout ? "成交量大于5日均量1.5倍，放量" : "未明显放量"],
+    ["5日均量", fmt(a.vol_ma5,0), "用于判断是否放量"],
+    ["距离5日线", fmt(a.distance_ma5_pct)+"%", signals.far_from_ma5 ? "距离过远，只能半仓，等回踩" : "距离不算太远"],
+    ["连续跌破天数", a.below_ma5_days + "天", a.below_ma5_days >= 3 ? "三天不回，清仓信号" : "未触发三天清仓"],
+    ["数据周期", d.data_points + "个交易日", "用于计算均线和成交量"]
+  ];
+
+  document.getElementById("detailTable").innerHTML = rows.map(r=>`
+    <tr>
+      <td>${r[0]}</td>
+      <td class="mono">${r[1]}</td>
+      <td>${r[2]}</td>
+    </tr>
+  `).join("");
+}
+
+function saveWatch(){
+  if(!lastAnalysis){ alert("请先自动分析一只股票"); return; }
+  const d = lastAnalysis;
+  const item = {
+    date: today(),
+    name: d.name,
+    symbol: d.symbol,
+    close: d.quote.close,
+    pct_chg: d.quote.pct_chg,
+    ma5: d.analysis.ma5,
+    distance_ma5_pct: d.analysis.distance_ma5_pct,
+    score: d.score,
+    advice: d.advice.level + "：" + d.advice.action
+  };
+  const data = load();
+  data.unshift(item);
+  save(data);
+  renderWatch();
+  alert("已保存到观察池");
+}
+
+function delWatch(i){
+  const data = load();
+  data.splice(i,1);
+  save(data);
+  renderWatch();
+}
+
+function renderWatch(){
+  const data = load();
+  document.getElementById("sWatch").textContent = data.length;
+  const risk = data.filter(x => Number(x.score) < 6 || String(x.advice).includes("清仓") || String(x.advice).includes("不看")).length;
+  document.getElementById("sRisk").textContent = risk;
+
+  const tb = document.getElementById("watchTable");
+  if(!data.length){
+    tb.innerHTML = `<tr><td colspan="10" class="small">暂无观察股票。</td></tr>`;
+    return;
+  }
+  tb.innerHTML = data.map((x,i)=>`
+    <tr>
+      <td>${x.date}</td>
+      <td>${x.name || "-"}</td>
+      <td>${x.symbol}</td>
+      <td>${fmt(x.close)}</td>
+      <td class="${cls(x.pct_chg)}">${fmt(x.pct_chg)}%</td>
+      <td>${fmt(x.ma5)}</td>
+      <td class="${cls(x.distance_ma5_pct)}">${fmt(x.distance_ma5_pct)}%</td>
+      <td>${x.score}</td>
+      <td>${x.advice}</td>
+      <td><button class="mini red" onclick="delWatch(${i})">删除</button></td>
+    </tr>
+  `).join("");
+}
+
+function clearResult(){
+  lastAnalysis = null;
+  document.getElementById("mainResult").textContent = "等待输入股票代码...";
+  document.getElementById("detailTable").innerHTML = `<tr><td colspan="3" class="small">暂无数据。</td></tr>`;
+  document.getElementById("sScore").textContent = "0";
+}
+function clearAll(){
+  if(!confirm("确定清空观察池吗？")) return;
+  localStorage.removeItem(STORE);
+  renderWatch();
+}
+
+renderWatch();
+</script>
+</body>
+</html>
