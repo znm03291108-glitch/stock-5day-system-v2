@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.2-auto-batch",
+        "version": "3.3-risk-filter",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -56,6 +56,17 @@ def safe_str(v: Any) -> str:
         return str(v)
     except Exception:
         return ""
+
+
+def is_st_stock(name: str) -> bool:
+    n = (name or "").upper().replace(" ", "")
+    return "ST" in n or "退" in n
+
+
+def is_bj_stock(symbol: str) -> bool:
+    # 北交所常见 8、4 开头；本系统默认主做沪深 A 股
+    s = normalize_symbol(symbol)
+    return s.startswith(("8", "4"))
 
 
 def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
@@ -168,6 +179,27 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
     far_from_ma5 = distance_ma5_pct is not None and distance_ma5_pct >= 6
     near_buy_point = rise_over_5 and above_ma5 and distance_ma5_pct is not None and 0 <= distance_ma5_pct <= 3
 
+    risk_flags = []
+    name_text = name or symbol
+
+    if is_st_stock(name_text):
+        risk_flags.append("ST/*ST风险")
+    if is_bj_stock(symbol):
+        risk_flags.append("北交所过滤")
+    if last_close is not None and last_close < 3:
+        risk_flags.append("低价股风险")
+    if amount is not None and amount < 100_000_000:
+        risk_flags.append("成交额不足1亿")
+    if turnover is not None and turnover > 30:
+        risk_flags.append("换手率过高")
+    if pct_chg is not None and pct_chg >= 19:
+        risk_flags.append("接近20cm涨停/高波动")
+    if distance_ma5_pct is not None and distance_ma5_pct > 10:
+        risk_flags.append("严重远离5日线")
+
+    hard_risk = any(x in risk_flags for x in ["ST/*ST风险", "北交所过滤", "成交额不足1亿"])
+    soft_risk = any(x in risk_flags for x in ["低价股风险", "换手率过高", "接近20cm涨停/高波动", "严重远离5日线"])
+
     score10 = 0
     if rise_over_5: score10 += 2
     if volume_breakout: score10 += 2
@@ -184,14 +216,26 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
     if turnover and turnover >= 8:
         smart_score = min(100, smart_score + 6)
 
-    if not rise_over_5:
+    # 风险扣分
+    if hard_risk:
+        smart_score = max(0, smart_score - 25)
+    elif soft_risk:
+        smart_score = max(0, smart_score - 10)
+
+    safe_near = near_buy_point and not hard_risk and not soft_risk and amount is not None and amount >= 200_000_000 and turnover is not None and 3 <= turnover <= 20
+
+    if hard_risk:
+        level, action, position, risk, rank, category = "风险过滤", "触发硬风险过滤，不进入普通买点池。", "不买；仅观察或直接排除。", "、".join(risk_flags), 7, "riskfilter"
+    elif not rise_over_5:
         level, action, position, risk, rank, category = "不看", "涨幅没有超过5%，不符合强势股第一条件。", "不买。", "没有明显主力进攻信号。", 6, "ignore"
     elif below_days >= 3:
         level, action, position, risk, rank, category = "清仓信号", "连续3天收盘没有站回5日线，短线趋势失效。", "已有仓位应清仓；没有仓位不进。", "趋势失效，不要幻想。", 5, "risk"
     elif not above_ma5:
         level, action, position, risk, rank, category = "风控信号", "股价跌破5日线，尾盘站不回先减一半仓。", "不加仓；已有仓位减半或观察到尾盘。", "连续3天站不回5日线，清仓。", 4, "risk"
+    elif safe_near and smart_score >= 65:
+        level, action, position, risk, rank, category = "安全接近买点", "涨幅超过5%，站上5日线，距离5日线不远，且未触发主要风险过滤。", "可分批；先小仓确认，不能一次满仓。", "尾盘跌破5日线，减半仓。", 1, "safe_near"
     elif near_buy_point and smart_score >= 65:
-        level, action, position, risk, rank, category = "接近买点", "涨幅超过5%，站上5日线，且距离5日线不远。", "可分批；先小仓确认，不能一次满仓。", "尾盘跌破5日线，减半仓。", 1, "near"
+        level, action, position, risk, rank, category = "接近买点", "涨幅超过5%，站上5日线，距离5日线不远，但仍有风险标签。", "只可轻仓观察；严格看尾盘5日线。", "、".join(risk_flags) if risk_flags else "尾盘跌破5日线，减半仓。", 2, "near"
     elif far_from_ma5:
         level, action, position, risk, rank, category = "强势但远离5日线", "股价强势，但已经远离5日线，不适合满仓追高。", "最多半仓；等回踩5日线不破再接回来。", "远离5日线容易冲高回落。", 3, "far"
     elif smart_score >= 80:
@@ -209,22 +253,44 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
     ]
     if far_from_ma5: tags.append("远离5日线")
     if near_buy_point: tags.append("接近买点")
+    if safe_near: tags.append("安全接近买点")
     if amount and amount >= 1_000_000_000: tags.append("成交额活跃")
     if turnover and turnover >= 8: tags.append("高换手")
+    tags.extend(risk_flags)
 
     return {
         "symbol": symbol, "name": name or symbol, "data_points": int(len(work)), "rank": rank,
         "category": category, "score": int(score10), "smart_score": int(smart_score), "tags": tags,
+        "risk_flags": risk_flags, "hard_risk": hard_risk, "soft_risk": soft_risk,
         "quote": {"date": str(last[cols["date"]].date()), "open": last_open, "close": last_close, "volume": last_volume, "amount": amount, "turnover": turnover, "pct_chg": pct_chg},
         "analysis": {"ma5": ma5, "ma10": ma10, "ma20": ma20, "vol_ma5": vol_ma5, "distance_ma5_pct": distance_ma5_pct, "below_ma5_days": below_days},
         "advice": {"level": level, "action": action, "position": position, "risk": risk},
     }
 
 
-def quick_score_from_spot(item: Dict[str, Any]) -> Dict[str, Any]:
+def quick_score_from_spot(item: Dict[str, Any], enable_risk_filter: bool = True) -> Dict[str, Any]:
     pct = item.get("pct_chg") or 0
     amount = item.get("amount") or 0
     turnover = item.get("turnover") or 0
+    name = item.get("name") or item["symbol"]
+    symbol = item["symbol"]
+
+    risk_flags = []
+    if is_st_stock(name):
+        risk_flags.append("ST/*ST风险")
+    if is_bj_stock(symbol):
+        risk_flags.append("北交所过滤")
+    if item.get("price") is not None and item.get("price") < 3:
+        risk_flags.append("低价股风险")
+    if amount and amount < 100_000_000:
+        risk_flags.append("成交额不足1亿")
+    if turnover and turnover > 30:
+        risk_flags.append("换手率过高")
+    if pct >= 19:
+        risk_flags.append("接近20cm涨停/高波动")
+
+    hard_risk = any(x in risk_flags for x in ["ST/*ST风险", "北交所过滤", "成交额不足1亿"])
+
     score = 0
     score += min(max(pct, 0), 10) * 4
     if amount >= 5_000_000_000: score += 30
@@ -234,15 +300,34 @@ def quick_score_from_spot(item: Dict[str, Any]) -> Dict[str, Any]:
     elif turnover >= 8: score += 16
     elif turnover >= 3: score += 8
     score = int(min(score, 100))
-    category = "watch" if pct >= 5 else "ignore"
-    level = "热门候选" if pct >= 5 else "只看热度"
+    if hard_risk:
+        score = max(0, score - 25)
+
+    if enable_risk_filter and hard_risk:
+        category = "riskfilter"
+        level = "风险过滤"
+    else:
+        category = "watch" if pct >= 5 else "ignore"
+        level = "热门候选" if pct >= 5 else "只看热度"
+
+    tags = ["热门候选" if pct >= 5 else "涨幅不足5%"]
+    tags.append("成交额活跃" if amount >= 1_000_000_000 else "成交额一般")
+    tags.append("高换手" if turnover >= 8 else "换手一般")
+    tags.extend(risk_flags)
+
     return {
-        "symbol": item["symbol"], "name": item.get("name") or item["symbol"], "category": category,
-        "rank": 3 if category == "watch" else 6, "score": 0, "smart_score": score,
-        "tags": ["热门候选" if pct >= 5 else "涨幅不足5%", "成交额活跃" if amount >= 1_000_000_000 else "成交额一般", "高换手" if turnover >= 8 else "换手一般"],
+        "symbol": symbol, "name": name, "category": category,
+        "rank": 7 if category == "riskfilter" else (3 if category == "watch" else 6),
+        "score": 0, "smart_score": score, "tags": tags,
+        "risk_flags": risk_flags, "hard_risk": hard_risk,
         "quote": {"date": datetime.now().strftime("%Y-%m-%d"), "open": None, "close": item.get("price"), "volume": None, "amount": amount, "turnover": turnover, "pct_chg": pct},
         "analysis": {"ma5": None, "ma10": None, "ma20": None, "vol_ma5": None, "distance_ma5_pct": None, "below_ma5_days": None},
-        "advice": {"level": level, "action": "快速筛选结果，只说明热度，不代表买点。可自动连续分批分析确认5日线。", "position": "先观察，不直接追。", "risk": "快速候选没有做5日线深度分析，不能直接当买入信号。"},
+        "advice": {
+            "level": level,
+            "action": "触发风险过滤，先排除。" if category == "riskfilter" else "快速筛选结果，只说明热度，不代表买点。可自动连续分批分析确认5日线。",
+            "position": "不买。" if category == "riskfilter" else "先观察，不直接追。",
+            "risk": "、".join(risk_flags) if risk_flags else "快速候选没有做5日线深度分析，不能直接当买入信号。",
+        },
         "quick_only": True,
     }
 
@@ -261,13 +346,13 @@ def fetch_eastmoney_spot(page_size: int = 80, sort_field: str = "f3") -> List[Di
     out = []
     for row in rows:
         code = safe_str(row.get("f12"))
-        if len(code) != 6 or not code.startswith(("00", "30", "60", "68")):
+        if len(code) != 6 or not code.startswith(("00", "30", "60", "68", "8", "4")):
             continue
         out.append({"symbol": code, "name": safe_str(row.get("f14")), "price": safe_float(row.get("f2")), "pct_chg": safe_float(row.get("f3")), "amount": safe_float(row.get("f6")), "turnover": safe_float(row.get("f8")), "secid": market_prefix(code) + code})
     return out
 
 
-def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
+def get_spot_candidates(limit: int = 60, enable_risk_filter: bool = True, include_risk: bool = True) -> Dict[str, Any]:
     all_rows, errors = [], []
     for sort_field in ["f3", "f6", "f8"]:
         try:
@@ -280,6 +365,10 @@ def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
     for item in all_rows:
         seen[item["symbol"]] = item
     candidates = list(seen.values())
+
+    if enable_risk_filter and not include_risk:
+        candidates = [x for x in candidates if not is_st_stock(x.get("name", "")) and not is_bj_stock(x.get("symbol", "")) and (x.get("amount") or 0) >= 100_000_000]
+
     candidates.sort(key=lambda x: (-(x.get("pct_chg") or -999), -(x.get("amount") or 0), -(x.get("turnover") or 0)))
     return {"candidates": candidates[:limit], "source_count": len(candidates), "errors": errors}
 
@@ -311,7 +400,18 @@ def parse_symbols(raw: str) -> List[str]:
 
 
 def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) -> Dict[str, Any]:
-    return {"total_input": total_input, "success": len(results), "failed": failed, "near": len([x for x in results if x.get("category") == "near"]), "focus": len([x for x in results if x.get("category") == "focus"]), "watch": len([x for x in results if x.get("category") in ["watch", "far"]]), "far": len([x for x in results if x.get("category") == "far"]), "risk": len([x for x in results if x.get("category") == "risk"]), "ignore": len([x for x in results if x.get("category") == "ignore"]), "quick_only": len([x for x in results if x.get("quick_only")])}
+    return {
+        "total_input": total_input, "success": len(results), "failed": failed,
+        "safe_near": len([x for x in results if x.get("category") == "safe_near"]),
+        "near": len([x for x in results if x.get("category") == "near"]),
+        "focus": len([x for x in results if x.get("category") == "focus"]),
+        "watch": len([x for x in results if x.get("category") in ["watch", "far"]]),
+        "far": len([x for x in results if x.get("category") == "far"]),
+        "risk": len([x for x in results if x.get("category") == "risk"]),
+        "riskfilter": len([x for x in results if x.get("category") == "riskfilter"]),
+        "ignore": len([x for x in results if x.get("category") == "ignore"]),
+        "quick_only": len([x for x in results if x.get("quick_only")]),
+    }
 
 
 @app.route("/")
@@ -321,7 +421,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.2-auto-batch", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持自动连续分批深度分析"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.3-risk-filter", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持风险过滤增强与安全接近买点"})
 
 
 @app.route("/api/analyze")
@@ -345,7 +445,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.2-auto-batch", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.3-risk-filter", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
@@ -353,18 +453,21 @@ def api_smart_hot():
     payload = request.get_json(silent=True) if request.method == "POST" else request.args
     payload = payload or {}
     quick_limit = max(20, min(int(payload.get("quick_limit", 35)), 60))
+    enable_risk_filter = str(payload.get("enable_risk_filter", "true")).lower() != "false"
+    include_risk = str(payload.get("include_risk", "true")).lower() != "false"
+
     try:
-        spot_data = get_spot_candidates(limit=quick_limit)
+        spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.2-auto-batch", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.3-risk-filter", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
-    quick_results = [quick_score_from_spot(x) for x in candidates]
-    quick_results.sort(key=lambda x: (-(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
+    quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
+    quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
     summary = build_summary(quick_results[:quick_limit], len(candidates), 0)
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.2-auto-batch", "mode": "eastmoney_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.3-risk-filter", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -398,7 +501,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.2-auto-batch", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.3-risk-filter", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
