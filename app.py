@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.7.0-valid-ma5-filter",
+        "version": "3.7.1-t-discipline",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -1026,7 +1026,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.0-valid-ma5-filter", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.1-t-discipline", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1036,7 +1036,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.7.0-valid-ma5-filter",
+            "version": "3.7.1-t-discipline",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1069,7 +1069,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.0-valid-ma5-filter", "summary": build_summary(results, len(symbols), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.1-t-discipline", "summary": build_summary(results, len(symbols), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
 
 
 
@@ -1663,7 +1663,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.7.0-valid-ma5-filter",
+            "version": "3.7.1-t-discipline",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1671,7 +1671,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.0-valid-ma5-filter",
+            "version": "3.7.1-t-discipline",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -1723,6 +1723,47 @@ def abnormal_pct_item(item: Dict[str, Any], max_pct: float = 30.0) -> bool:
     if pct is None:
         return False
     return abs(pct) > max_pct
+
+
+
+def build_t_discipline_text(item: Dict[str, Any]) -> Dict[str, Any]:
+    """底仓做T纪律辅助：只给纪律提醒，不给买卖指令。"""
+    x = item or {}
+    valid = bool(x.get("valid_for_5day_system", True))
+    dist = to_float_safe(x.get("distance_ma5_pct") or x.get("distance_to_ma5"), None)
+    pct = to_float_safe(x.get("pct_chg") or x.get("change_pct"), None)
+    status = "仅纪律提醒"
+    suggestion = "需要盘中分时黄线、成交量和MACD柱子共同确认，不能只靠日K做T。"
+    risk = "做T必须围绕底仓，不能因为做T变成额外加仓。"
+    if not valid:
+        status = "不适合做T"
+        suggestion = "该票触发风险过滤或缺少有效5日线，不适合作为做T样本。"
+        risk = "无有效5日线或异常波动时，做T容易越做成本越高。"
+    elif dist is not None and dist > 8:
+        status = "谨慎反T观察"
+        suggestion = "股价远离5日线，若盘中冲高缩量且MACD红柱缩短，只能观察减仓T，不适合追高正T。"
+        risk = "远离5日线容易冲高回落，也可能继续强势，反T有卖飞风险。"
+    elif dist is not None and -3 <= dist <= 5:
+        status = "可观察正T/反T"
+        suggestion = "股价接近5日线，可结合分时黄线、量价背离、MACD柱子判断日内T机会。"
+        risk = "必须先小仓确认，不能一次满仓，不能让仓位越T越大。"
+    elif pct is not None and pct > 7:
+        status = "冲高谨慎"
+        suggestion = "涨幅较大时更适合观察反T或减仓纪律，不适合追涨加仓。"
+        risk = "高位做T容易买回更高或卖飞强势股。"
+    return {
+        "t_status": status,
+        "t_suggestion": suggestion,
+        "t_risk": risk,
+        "t_rules": [
+            "正T：低买高卖，适合急跌后修复。",
+            "反T：高卖低接，适合冲高乏力。",
+            "买入组合：新低 + 放量 + MACD绿柱缩短。",
+            "卖出组合：新高 + 缩量 + MACD红柱缩短。",
+            "没有底仓不做T；跌破5日线不硬T。"
+        ],
+        "disclaimer": "做T纪律辅助，不构成投资建议。"
+    }
 
 def mark_validity(item: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -1776,6 +1817,10 @@ def mark_validity(item: Dict[str, Any]) -> Dict[str, Any]:
             tags.append("有效5日线")
             x["tags"] = tags
         x["data_quality"] = "有效5日线"
+    try:
+        x["t_discipline"] = build_t_discipline_text(x)
+    except Exception:
+        pass
     return x
 
 def filter_valid_candidates(items, keep_invalid: bool = False):
@@ -1907,11 +1952,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.0-valid-ma5-filter",
+            "version": "3.7.1-t-discipline",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.0-valid-ma5-filter", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.1-t-discipline", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2118,11 +2163,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.0-valid-ma5-filter",
+            "version": "3.7.1-t-discipline",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.0-valid-ma5-filter", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.1-t-discipline", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2198,7 +2243,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.7.0-valid-ma5-filter",
+            "version": "3.7.1-t-discipline",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -2207,7 +2252,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.0-valid-ma5-filter",
+            "version": "3.7.1-t-discipline",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -2232,7 +2277,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.0-valid-ma5-filter", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.1-t-discipline", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -2240,7 +2285,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.7.0-valid-ma5-filter", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.7.1-t-discipline", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -2274,7 +2319,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.0-valid-ma5-filter", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.1-t-discipline", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
 
 
 
@@ -2282,7 +2327,7 @@ def api_deep_batch():
 def api_filter_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.0-valid-ma5-filter",
+        "version": "3.7.1-t-discipline",
         "filters": [
             "排除 N/C/U/W 新股或特殊上市标识",
             "排除涨幅超过30%的异常波动票",
@@ -2293,6 +2338,32 @@ def api_filter_status():
             "异常候选最高分限制为59分"
         ],
         "principle": "没有有效5日线，就不参与5日线交易纪律评分。"
+    })
+
+
+
+@app.route("/api/t_discipline", methods=["GET"])
+def api_t_discipline():
+    return jsonify({
+        "ok": True,
+        "version": "3.7.1-t-discipline",
+        "position_principle": "做T是围绕已有底仓赚日内波动差价，不是额外加仓；目标是降低持仓成本，而不是频繁追涨杀跌。",
+        "types": {
+            "positive_t": "正T：低位买入，高位卖出，适合盘中急跌后修复，但必须有底仓和纪律。",
+            "reverse_t": "反T：高位先卖，低位接回，适合盘中冲高乏力，但容易卖飞强势股。"
+        },
+        "signals": [
+            {"name": "分时黄线", "buy": "白线明显低于黄线且跌幅过大，可观察低吸。", "sell": "白线明显高于黄线且冲高过远，可观察减仓。", "risk": "必须结合成交量和MACD。"},
+            {"name": "量价背离", "buy": "股价新低但放量，恐慌释放后观察。", "sell": "股价新高但缩量，说明追涨力量不足。", "risk": "弱势放量可能继续出货。"},
+            {"name": "MACD柱子", "buy": "新低绿柱缩短，杀跌动能减弱。", "sell": "新高红柱缩短，上涨动能减弱。", "risk": "MACD滞后，不能单独使用。"}
+        ],
+        "combo": {
+            "buy_watch": "新低 + 放量 + MACD绿柱缩短：观察正T低吸。",
+            "sell_watch": "新高 + 缩量 + MACD红柱缩短：观察反T/减仓。",
+            "avoid": "没有底仓、趋势破位、跌破5日线未修复、远离5日线时，不适合强行做T。"
+        },
+        "risks": ["越T成本越高", "卖飞强势股", "没有底仓乱加仓", "弱势股越补越套", "频繁操作影响判断"],
+        "disclaimer": "本模块是持仓纪律辅助，不是买卖指令，不构成投资建议。"
     })
 
 if __name__ == "__main__":
