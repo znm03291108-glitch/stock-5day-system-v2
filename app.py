@@ -1,31 +1,22 @@
+
 from __future__ import annotations
-
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
-
+from typing import Any, Dict, Optional, List
 import pandas as pd
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-# 你的 index.html 现在放在根目录，所以这里用 "." 
 app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
-
 def normalize_symbol(symbol: str) -> str:
-    """
-    只保留6位数字代码。
-    兼容用户输入：sh600000 / sz300592 / 300592。
-    """
     s = (symbol or "").strip().lower()
-    s = s.replace("sh", "").replace("sz", "").replace("bj", "")
+    for x in ["sh", "sz", "bj"]:
+        s = s.replace(x, "")
     s = "".join(ch for ch in s if ch.isdigit())
-
     if len(s) != 6:
         raise ValueError("股票代码必须是6位数字，例如 300592、000001、600519")
-
     return s
-
 
 def safe_float(v: Any) -> Optional[float]:
     try:
@@ -35,11 +26,7 @@ def safe_float(v: Any) -> Optional[float]:
     except Exception:
         return None
 
-
 def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
-    """
-    兼容 AKShare 不同版本字段命名。
-    """
     candidates = {
         "date": ["日期", "date", "交易日"],
         "open": ["开盘", "open", "开盘价"],
@@ -50,76 +37,44 @@ def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
         "amount": ["成交额", "amount", "成交额(元)"],
         "pct_chg": ["涨跌幅", "pct_chg", "涨幅"],
     }
-
     result = {}
     cols = list(df.columns)
-
     for key, names in candidates.items():
         for name in names:
             if name in cols:
                 result[key] = name
                 break
-
     required = ["date", "open", "close", "high", "low", "volume"]
     missing = [k for k in required if k not in result]
-
     if missing:
         raise ValueError(f"行情字段不完整，缺少：{missing}，当前字段：{cols}")
-
     return result
 
-
 def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
-    """
-    使用 AKShare 获取 A 股历史日K。
-    V2.0.1 加速点：
-    1. 只获取最近90天数据
-    2. 不再拉全市场股票名称
-    3. 避免 end_date 未定义问题
-    """
     import akshare as ak
-
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
-
-    df = ak.stock_zh_a_hist(
-        symbol=symbol,
-        period="daily",
-        start_date=start_date,
-        end_date=end_date,
-        adjust=adjust or "",
-    )
-
+    df = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust=adjust or "")
     if df is None or df.empty:
         raise ValueError("没有获取到行情数据，可能是代码错误、停牌或 AKShare 数据源暂时不可用")
-
     return df
-
 
 def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
     symbol = normalize_symbol(symbol)
-
-    if adjust not in ["", "qfq", "hfq"]:
-        adjust = ""
-
+    adjust = adjust if adjust in ["", "qfq", "hfq"] else ""
     df = fetch_hist(symbol, adjust)
     cols = detect_columns(df)
-
     work = df.copy()
-
     for key in ["open", "close", "high", "low", "volume", "amount", "pct_chg"]:
         if key in cols:
             work[cols[key]] = pd.to_numeric(work[cols[key]], errors="coerce")
-
     work[cols["date"]] = pd.to_datetime(work[cols["date"]])
     work = work.sort_values(cols["date"]).reset_index(drop=True)
-
     if len(work) < 20:
         raise ValueError("历史数据不足20个交易日，无法稳定计算均线")
 
     close = work[cols["close"]]
     volume = work[cols["volume"]]
-
     work["MA5"] = close.rolling(5).mean()
     work["MA10"] = close.rolling(10).mean()
     work["MA20"] = close.rolling(20).mean()
@@ -127,18 +82,15 @@ def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
 
     last = work.iloc[-1]
     prev = work.iloc[-2]
-
     last_close = safe_float(last[cols["close"]])
     last_open = safe_float(last[cols["open"]])
     last_high = safe_float(last[cols["high"]])
     last_low = safe_float(last[cols["low"]])
     last_volume = safe_float(last[cols["volume"]])
-
     ma5 = safe_float(last["MA5"])
     ma10 = safe_float(last["MA10"])
     ma20 = safe_float(last["MA20"])
     vol_ma5 = safe_float(last["VOL_MA5"])
-
     if last_close is None or last_open is None or ma5 is None:
         raise ValueError("关键行情数据为空，无法分析")
 
@@ -149,183 +101,139 @@ def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
         pct_chg = ((last_close - prev_close) / prev_close * 100) if prev_close else None
 
     distance_ma5_pct = ((last_close - ma5) / ma5 * 100) if ma5 else None
-
-    # 连续跌破5日线天数
     below_days = 0
     for _, row in work.iloc[::-1].iterrows():
         c = safe_float(row[cols["close"]])
         m = safe_float(row["MA5"])
-
         if c is not None and m is not None and c < m:
             below_days += 1
         else:
             break
 
-    # 信号判断
     rise_over_5 = pct_chg is not None and pct_chg >= 5
-
-    volume_breakout = (
-        last_volume is not None
-        and vol_ma5 is not None
-        and last_volume >= vol_ma5 * 1.5
-    )
-
+    volume_breakout = last_volume is not None and vol_ma5 is not None and last_volume >= vol_ma5 * 1.5
+    volume_above_avg = last_volume is not None and vol_ma5 is not None and last_volume >= vol_ma5
     candle_body_pct = ((last_close - last_open) / last_open * 100) if last_open else 0
     big_yang = candle_body_pct >= 3 and last_close > last_open
-
     above_ma5 = last_close >= ma5
     above_ma10 = ma10 is not None and last_close >= ma10
     above_ma20 = ma20 is not None and last_close >= ma20
-
     far_from_ma5 = distance_ma5_pct is not None and distance_ma5_pct >= 6
+    near_ma5 = distance_ma5_pct is not None and -1 <= distance_ma5_pct <= 3
 
-    # 10分制评分
     score = 0
+    if rise_over_5: score += 2
+    if volume_breakout: score += 2
+    elif volume_above_avg: score += 1
+    if big_yang: score += 2
+    elif last_close > last_open: score += 1
+    if above_ma5: score += 2
+    if above_ma10 or above_ma20: score += 1
+    if distance_ma5_pct is not None and 0 <= distance_ma5_pct <= 8: score += 1
 
-    if rise_over_5:
-        score += 2
-
-    if volume_breakout:
-        score += 2
-    elif last_volume is not None and vol_ma5 is not None and last_volume >= vol_ma5:
-        score += 1
-
-    if big_yang:
-        score += 2
-    elif last_close > last_open:
-        score += 1
-
-    if above_ma5:
-        score += 2
-
-    if above_ma10 or above_ma20:
-        score += 1
-
-    if distance_ma5_pct is not None and 0 <= distance_ma5_pct <= 8:
-        score += 1
-
-    # 交易纪律建议
     if not rise_over_5:
-        level = "不看"
-        action = "今日涨幅没有超过5%，不符合强势股第一条件，暂时不看。"
-        position = "不买。"
-        risk = "没有明显主力进攻信号，避免浪费精力。"
-
+        level, action, position, risk, rank = "不看", "涨幅没有超过5%，不符合强势股第一条件。", "不买。", "没有明显主力进攻信号。", 5
     elif below_days >= 3:
-        level = "清仓信号"
-        action = "已经连续3天收盘没有站回5日线，短线趋势失效，按纪律果断卖掉。"
-        position = "已有仓位应清仓；没有仓位不进。"
-        risk = "趋势失效，不要幻想。"
-
+        level, action, position, risk, rank = "清仓信号", "连续3天收盘没有站回5日线，短线趋势失效。", "已有仓位应清仓；没有仓位不进。", "趋势失效，不要幻想。", 4
     elif not above_ma5:
-        level = "风控信号"
-        action = "股价跌破5日线，如果接近尾盘仍站不回，先减一半仓。"
-        position = "不加仓；已有仓位减半或观察到尾盘。"
-        risk = "如果后续连续3天站不回5日线，清仓。"
-
+        level, action, position, risk, rank = "风控信号", "股价跌破5日线，尾盘站不回先减一半仓。", "不加仓；已有仓位减半或观察到尾盘。", "连续3天站不回5日线，清仓。", 3
     elif far_from_ma5:
-        level = "强势但远离5日线"
-        action = "股价强势，但已经远离5日线，不适合满仓追高。"
-        position = "最多半仓；等回踩5日线不破再接回来。"
-        risk = "远离5日线容易冲高回落。"
-
+        level, action, position, risk, rank = "强势但远离5日线", "股价强势，但已经远离5日线，不适合满仓追高。", "最多半仓；等回踩5日线不破再接回来。", "远离5日线容易冲高回落。", 2
+    elif score >= 8 and near_ma5:
+        level, action, position, risk, rank = "重点关注", "强势且接近5日线，重点看回踩不破机会。", "可以按计划分批，不能无脑满仓。", "尾盘跌破5日线，减半仓。", 1
     elif score >= 8:
-        level = "重点关注"
-        action = "符合强势股条件，等回踩5日线附近不破，再考虑进场。"
-        position = "可以按计划分批，不能无脑满仓。"
-        risk = "如果尾盘跌破5日线，减半仓。"
-
+        level, action, position, risk, rank = "重点关注", "符合强势股条件，等回踩5日线附近不破。", "分批；远离5日线时不要满仓。", "尾盘跌破5日线，减半仓。", 1
     elif score >= 6:
-        level = "加入自选"
-        action = "有一定强度，但还要等5日线附近确认。"
-        position = "轻仓或等待；回踩不破再考虑。"
-        risk = "强度还不够，避免追高。"
-
+        level, action, position, risk, rank = "加入自选", "有一定强度，但还要等5日线附近确认。", "轻仓或等待；回踩不破再考虑。", "强度还不够，避免追高。", 2
     else:
-        level = "暂不操作"
-        action = "条件不完整，先观察。"
-        position = "不买或轻仓观察。"
-        risk = "信号不足，容易买到假突破。"
+        level, action, position, risk, rank = "暂不操作", "条件不完整，先观察。", "不买或轻仓观察。", "信号不足，容易买到假突破。", 5
 
-    # V2.0.1 加速：不再自动获取股票名称，避免卡住
-    name = symbol
+    tags = [
+        "涨幅超过5%" if rise_over_5 else "涨幅不足5%",
+        "明显放量" if volume_breakout else ("量能高于5日均量" if volume_above_avg else "未明显放量"),
+        "大阳线" if big_yang else "非大阳线",
+        "站上5日线" if above_ma5 else "跌破5日线",
+    ]
+    if far_from_ma5: tags.append("远离5日线")
+    if near_ma5 and above_ma5: tags.append("靠近5日线")
 
     return {
-        "symbol": symbol,
-        "name": name,
-        "data_points": int(len(work)),
+        "symbol": symbol, "name": symbol, "data_points": int(len(work)), "rank": int(rank), "score": int(score), "tags": tags,
         "quote": {
-            "date": str(last[cols["date"]].date()),
-            "open": last_open,
-            "close": last_close,
-            "high": last_high,
-            "low": last_low,
-            "volume": last_volume,
-            "amount": safe_float(last[cols["amount"]]) if "amount" in cols else None,
-            "pct_chg": pct_chg,
+            "date": str(last[cols["date"]].date()), "open": last_open, "close": last_close,
+            "high": last_high, "low": last_low, "volume": last_volume,
+            "amount": safe_float(last[cols["amount"]]) if "amount" in cols else None, "pct_chg": pct_chg,
         },
         "analysis": {
-            "ma5": ma5,
-            "ma10": ma10,
-            "ma20": ma20,
-            "vol_ma5": vol_ma5,
-            "distance_ma5_pct": distance_ma5_pct,
-            "candle_body_pct": candle_body_pct,
-            "below_ma5_days": below_days,
+            "ma5": ma5, "ma10": ma10, "ma20": ma20, "vol_ma5": vol_ma5,
+            "distance_ma5_pct": distance_ma5_pct, "candle_body_pct": candle_body_pct, "below_ma5_days": below_days,
         },
         "signals": {
-            "rise_over_5": rise_over_5,
-            "volume_breakout": volume_breakout,
-            "big_yang": big_yang,
-            "above_ma5": above_ma5,
-            "above_ma10": above_ma10,
-            "above_ma20": above_ma20,
-            "far_from_ma5": far_from_ma5,
+            "rise_over_5": rise_over_5, "volume_breakout": volume_breakout, "volume_above_avg": volume_above_avg,
+            "big_yang": big_yang, "above_ma5": above_ma5, "above_ma10": above_ma10,
+            "above_ma20": above_ma20, "far_from_ma5": far_from_ma5, "near_ma5": near_ma5,
         },
-        "score": int(score),
-        "advice": {
-            "level": level,
-            "action": action,
-            "position": position,
-            "risk": risk,
-        },
+        "advice": {"level": level, "action": action, "position": position, "risk": risk},
     }
 
+def parse_symbols(raw: str) -> List[str]:
+    text = (raw or "").replace("，", ",").replace("、", ",").replace("\n", ",").replace(" ", ",")
+    result, seen = [], set()
+    for x in text.split(","):
+        if not x.strip():
+            continue
+        try:
+            s = normalize_symbol(x)
+            if s not in seen:
+                seen.add(s); result.append(s)
+        except Exception:
+            pass
+    return result
 
 @app.route("/")
 def index():
     return send_from_directory(".", "index.html")
 
-
 @app.route("/api/health")
 def api_health():
-    return jsonify({
-        "ok": True,
-        "service": "stock-5day-system-v2",
-        "version": "2.0.1-fast",
-        "time": datetime.now().isoformat(timespec="seconds"),
-        "message": "后端正常，可以开始分析股票代码"
-    })
-
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "2.1-batch-scan", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，可以开始分析股票代码"})
 
 @app.route("/api/analyze")
 def api_analyze():
     try:
-        symbol = request.args.get("symbol", "")
-        adjust = request.args.get("adjust", "")
-        data = analyze_stock(symbol, adjust)
-        return jsonify(data)
+        return jsonify(analyze_stock(request.args.get("symbol", ""), request.args.get("adjust", "")))
     except Exception as e:
-        return jsonify({
-            "error": str(e),
-            "tips": [
-                "检查股票代码是否为6位数字",
-                "确认 Railway 后端已经正常启动",
-                "确认 AKShare 数据源当前可用",
-                "如果长时间失败，可以稍后重试"
-            ]
-        }), 400
+        return jsonify({"error": str(e)}), 400
 
+@app.route("/api/batch_analyze", methods=["POST"])
+def api_batch_analyze():
+    try:
+        payload = request.get_json(silent=True) or {}
+        symbols = parse_symbols(payload.get("symbols", ""))
+        adjust = payload.get("adjust", "")
+        if not symbols:
+            raise ValueError("没有识别到有效股票代码，请输入6位股票代码")
+        if len(symbols) > 30:
+            symbols = symbols[:30]
+
+        results, errors = [], []
+        for sym in symbols:
+            try:
+                results.append(analyze_stock(sym, adjust))
+            except Exception as e:
+                errors.append({"symbol": sym, "error": str(e)})
+
+        results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
+        summary = {
+            "total_input": len(symbols), "success": len(results), "failed": len(errors),
+            "focus": len([x for x in results if x["advice"]["level"] == "重点关注"]),
+            "watch": len([x for x in results if x["advice"]["level"] in ["加入自选", "强势但远离5日线"]]),
+            "risk": len([x for x in results if x["advice"]["level"] in ["风控信号", "清仓信号"]]),
+            "ignore": len([x for x in results if x["advice"]["level"] in ["不看", "暂不操作"]]),
+        }
+        return jsonify({"ok": True, "version": "2.1-batch-scan", "summary": summary, "results": results, "errors": errors})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
