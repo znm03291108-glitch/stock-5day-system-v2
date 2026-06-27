@@ -2,13 +2,13 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>5日线强势股交易纪律系统 V3.6.4</title>
+<title>5日线强势股交易纪律系统 V3.6.5</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Arial,sans-serif;background:#0f172a;color:#e5e7eb}.container{max-width:1160px;margin:0 auto;padding:16px}.header{background:linear-gradient(135deg,#172554,#111827);border:1px solid rgba(148,163,184,.25);border-radius:18px;padding:20px;margin-bottom:16px}h1{margin:0 0 8px;font-size:24px;color:#fff}.warn{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.35);color:#fde68a;font-size:13px;line-height:1.6}.card{background:#111827;border:1px solid rgba(148,163,184,.22);border-radius:16px;padding:16px;margin-bottom:16px}label{display:block;margin:12px 0 6px;color:#cbd5e1;font-size:14px}input,select,textarea{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(148,163,184,.28);background:#020617;color:#f8fafc;font-size:15px;outline:none}textarea{min-height:132px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}.btns,.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}button{border:0;border-radius:12px;padding:11px 13px;color:#fff;background:#2563eb;font-weight:800;cursor:pointer;font-size:14px}.green{background:#16a34a}.gray{background:#475569}.red{background:#dc2626}.purple{background:#7c3aed}.orange{background:#ea580c}.result{margin-top:14px;padding:14px;border-radius:14px;background:#020617;border:1px solid rgba(148,163,184,.24);line-height:1.75;font-size:14px;white-space:pre-wrap;overflow:auto}.score{font-size:42px;font-weight:900;margin:6px 0}.good{color:#4ade80}.mid{color:#facc15}.bad{color:#fb7185}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;margin:2px 4px 6px 0;background:rgba(59,130,246,.15);color:#bfdbfe;border:1px solid rgba(59,130,246,.28)}.riskpill{background:rgba(248,113,113,.13);color:#fecaca;border-color:rgba(248,113,113,.3)}.techpill{background:rgba(168,85,247,.16);color:#ddd6fe;border-color:rgba(168,85,247,.35)}.safepill{background:rgba(34,197,94,.15);color:#bbf7d0;border-color:rgba(34,197,94,.35)}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}}.stat{background:#020617;border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:12px}.stat b{display:block;font-size:22px;margin-bottom:4px}.stat span{color:#94a3b8;font-size:12px}.tabs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}.tab,.filterbar button{background:#1e293b;color:#cbd5e1}.tab.active,.filterbar button.active{background:#2563eb;color:#fff}.hide{display:none}.footer{text-align:center;color:#64748b;padding:20px 0 8px;font-size:12px}.mobile-cards{display:grid;grid-template-columns:1fr;gap:12px}.stock-card{background:#020617;border:1px solid rgba(148,163,184,.24);border-radius:16px;padding:14px}.stock-card.quality_safe_near{border-color:rgba(34,197,94,1);box-shadow:0 0 0 2px rgba(34,197,94,.35)}.stock-card.safe_near{border-color:rgba(34,197,94,.95);box-shadow:0 0 0 1px rgba(34,197,94,.25)}.stock-card.near{border-color:rgba(74,222,128,.75)}.stock-card.focus{border-color:rgba(56,189,248,.65)}.stock-card.far,.stock-card.watch{border-color:rgba(250,204,21,.5)}.stock-card.risk,.stock-card.riskfilter{border-color:rgba(251,113,133,.65);opacity:.82}.stock-card.ignore{opacity:.72}.stock-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.stock-title{font-size:22px;font-weight:900}.stock-name{font-size:13px;color:#94a3b8;margin-top:2px}.rank{font-size:13px;color:#94a3b8}.level{font-weight:800;padding:5px 8px;border-radius:999px;font-size:12px;background:#1e293b}.quality_safe_near .level{background:rgba(34,197,94,.35);color:#dcfce7}.safe_near .level{background:rgba(34,197,94,.28);color:#dcfce7}.near .level{background:rgba(34,197,94,.2);color:#bbf7d0}.focus .level{background:rgba(56,189,248,.18);color:#bae6fd}.far .level,.watch .level{background:rgba(250,204,21,.15);color:#fef08a}.risk .level,.riskfilter .level{background:rgba(248,113,113,.15);color:#fecaca}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.metric{background:rgba(15,23,42,.75);border:1px solid rgba(148,163,184,.12);border-radius:12px;padding:10px}.metric span{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px}.metric b{font-size:18px}.advice-box{border-top:1px solid rgba(148,163,184,.18);padding-top:10px;margin-top:10px;line-height:1.65}.card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.card-actions button{padding:8px 10px;font-size:12px}.small{font-size:12px;color:#94a3b8;line-height:1.6}.theme-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:700px){.theme-list{grid-template-columns:1fr}}.theme-item{background:#020617;border:1px solid rgba(148,163,184,.18);border-radius:12px;padding:10px;cursor:pointer}.theme-item:active{transform:scale(.98)}.theme-item.selected{border-color:rgba(34,197,94,.8);box-shadow:0 0 0 1px rgba(34,197,94,.25)}.progress{height:10px;background:#020617;border-radius:999px;overflow:hidden;border:1px solid rgba(148,163,184,.2);margin-top:12px}.bar{height:100%;width:0%;background:#2563eb;transition:.3s}.running{outline:2px solid rgba(34,197,94,.45)}.switchrow{display:flex;gap:8px;align-items:center;margin-top:10px;color:#cbd5e1;font-size:13px}.switchrow input{width:auto}.planbox{border-top:1px solid rgba(34,197,94,.28);margin-top:10px;padding-top:10px;line-height:1.7;color:#dcfce7}.planbox b{color:#bbf7d0}
 </style>
 </head>
 <body><div class="container">
-<div class="header"><h1>5日线强势股交易纪律系统 V3.6.4</h1><p>实盘交易计划版：在风险过滤基础上，自动生成观察价、半仓价、止损价、2:50检查价、回踩接回价。</p><div class="warn">风险提示：本系统是交易纪律辅助工具，不是荐股软件，不保证盈利。题材自动深度分析只用于提高筛选效率；本系统不是买卖指令，实盘前必须人工核对行情、公告和财报。</div></div>
+<div class="header"><h1>5日线强势股交易纪律系统 V3.6.5</h1><p>实盘交易计划版：在风险过滤基础上，自动生成观察价、半仓价、止损价、2:50检查价、回踩接回价。</p><div class="warn">风险提示：本系统是交易纪律辅助工具，不是荐股软件，不保证盈利。大盘情绪只用于仓位和风险提醒；本系统不是买卖指令，实盘前必须人工核对行情、公告和财报。</div></div>
 <div class="tabs"><button id="tabSmart" class="tab active" onclick="showTab('smart')">今日智能筛选</button><button id="tabSingle" class="tab" onclick="showTab('single')">单股分析</button><button id="tabBatch" class="tab" onclick="showTab('batch')">批量扫描</button><button id="tabRules" class="tab" onclick="showTab('rules')">交易规则</button></div>
 
 <div id="smartPanel">
@@ -18,9 +18,15 @@
 <div class="switchrow"><input id="enableRiskFilter" type="checkbox" checked/> <span>开启风险过滤</span></div>
 <div class="switchrow"><input id="includeRisk" type="checkbox" checked/> <span>显示被过滤风险票</span></div>
 <div class="btns"><label class="checkline"><input id="themeAutoDeep" type="checkbox" checked> 点击题材后自动深度分析</label><label>题材自动分析数量</label><select id="themeDeepLimit"><option value="3">3只，最快</option><option value="6" selected>6只，推荐</option><option value="10">10只，较慢</option></select><button class="purple" onclick="smartHot()">今日智能筛选</button><button class="orange" onclick="deepNextBatch()">手动分析一批</button><button class="green" onclick="startAutoDeep()">自动连续分析</button><button class="red" onclick="stopAutoDeep()">停止自动分析</button><button class="gray" onclick="resetDeep()">重置进度</button></div><div class="progress"><div id="deepBar" class="bar"></div></div><div id="smartProgress" class="small"></div></div>
-<div class="card"><h2>二、智能筛选统计</h2><div class="stats"><div class="stat"><b id="hQuality">0</b><span>优质安全买点</span></div><div class="stat"><b id="hSafe">0</b><span>安全接近买点</span></div><div class="stat"><b id="hNear">0</b><span>接近买点</span></div><div class="stat"><b id="hFocus">0</b><span>重点关注</span></div><div class="stat"><b id="hEmotion">0</b><span>短线情绪票</span></div><div class="stat"><b id="hRisk">0</b><span>风险过滤</span></div></div><div id="hotSummary" class="result">暂无智能筛选数据。</div></div>
-<div class="card"><h2>三、热门题材/概念</h2><div class="small">点击题材后，会自动读取题材股票；如果已勾选自动深度分析，会直接分析前几只并生成5日线交易计划。</div><div id="selectedThemeInfo" class="result">当前未选择题材。</div><div id="themeList" class="theme-list"><div class="small">点击“今日智能筛选”后显示。</div></div></div>
-<div class="card"><h2>四、智能股票卡片</h2><div class="filterbar"><button id="hfAll" class="active" onclick="setHotFilter('all')">全部</button><button onclick="backToAllHot()" class="gray">返回全部候选</button><button id="hfQuality" onclick="setHotFilter('quality_safe_near')">优质安全</button><button id="hfSafe" onclick="setHotFilter('safe_near')">安全买点</button><button id="hfWatch" onclick="setHotFilter('watch')">热门候选</button><button id="hfNear" onclick="setHotFilter('near')">接近买点</button><button id="hfFocus" onclick="setHotFilter('focus')">重点</button><button id="hfFar" onclick="setHotFilter('far')">远离5日线</button><button id="hfEmotion" onclick="setHotFilter('emotion_short_term')">短线情绪</button><button id="hfRisk" onclick="setHotFilter('riskfilter')">风险过滤</button><button id="hfIgnore" onclick="setHotFilter('ignore')">不看</button></div><div id="hotCards" class="mobile-cards"><div class="small">暂无数据。</div></div></div>
+<div class="card" id="marketCard"><h2>二、大盘情绪</h2><div class="grid4">
+  <div class="stat"><b id="mScore">-</b><span>情绪分</span></div>
+  <div class="stat"><b id="mLevel">-</b><span>大盘状态</span></div>
+  <div class="stat"><b id="mUp">-</b><span>上涨家数</span></div>
+  <div class="stat"><b id="mLimit">-</b><span>涨停/跌停</span></div>
+</div><div id="marketDetail" class="result">点击“今日智能筛选”后显示大盘情绪。</div></div>
+<div class="card"><h2>三、智能筛选统计</h2><div class="stats"><div class="stat"><b id="hQuality">0</b><span>优质安全买点</span></div><div class="stat"><b id="hSafe">0</b><span>安全接近买点</span></div><div class="stat"><b id="hNear">0</b><span>接近买点</span></div><div class="stat"><b id="hFocus">0</b><span>重点关注</span></div><div class="stat"><b id="hEmotion">0</b><span>短线情绪票</span></div><div class="stat"><b id="hRisk">0</b><span>风险过滤</span></div></div><div id="hotSummary" class="result">暂无智能筛选数据。</div></div>
+<div class="card"><h2>四、热门题材/概念</h2><div class="small">点击题材后，会自动读取题材股票；如果已勾选自动深度分析，会直接分析前几只并生成5日线交易计划。</div><div id="selectedThemeInfo" class="result">当前未选择题材。</div><div id="themeList" class="theme-list"><div class="small">点击“今日智能筛选”后显示。</div></div></div>
+<div class="card"><h2>五、智能股票卡片</h2><div class="filterbar"><button id="hfAll" class="active" onclick="setHotFilter('all')">全部</button><button onclick="backToAllHot()" class="gray">返回全部候选</button><button id="hfQuality" onclick="setHotFilter('quality_safe_near')">优质安全</button><button id="hfSafe" onclick="setHotFilter('safe_near')">安全买点</button><button id="hfWatch" onclick="setHotFilter('watch')">热门候选</button><button id="hfNear" onclick="setHotFilter('near')">接近买点</button><button id="hfFocus" onclick="setHotFilter('focus')">重点</button><button id="hfFar" onclick="setHotFilter('far')">远离5日线</button><button id="hfEmotion" onclick="setHotFilter('emotion_short_term')">短线情绪</button><button id="hfRisk" onclick="setHotFilter('riskfilter')">风险过滤</button><button id="hfIgnore" onclick="setHotFilter('ignore')">不看</button></div><div id="hotCards" class="mobile-cards"><div class="small">暂无数据。</div></div></div>
 </div>
 
 <div id="singlePanel" class="hide"><div class="card"><h2>一、自动行情分析</h2><label>后端地址</label><input id="apiBase" placeholder="Railway 后端页面留空"/><div class="row"><div><label>股票代码</label><input id="symbol" value="300592"/></div><div><label>复权方式</label><select id="adjust"><option value="">不复权</option><option value="qfq">前复权</option><option value="hfq">后复权</option></select></div></div><div class="btns"><button onclick="analyze()">获取数据并分析</button><button class="green" onclick="saveWatch()">保存到观察池</button><button class="gray" onclick="clearResult()">清空结果</button></div><div id="mainResult" class="result">等待输入股票代码...</div></div></div>
@@ -33,7 +39,7 @@
 第四：下午2:50跌破5日线减一半仓。
 第五：跌破5日线连续三天没有重新站上，果断卖掉。
 
-V3.6.4 风险过滤：
+V3.6.5 风险过滤：
 1. ST / *ST 默认过滤。
 2. 北交所默认过滤。
 3. 688开头科创板默认过滤。
@@ -42,7 +48,7 @@ V3.6.4 风险过滤：
 6. 低价股标记风险。
 7. “安全接近买点”要求：站上5日线、距离5日线0~3%、成交额大于2亿、换手率3%~20%、无主要风险标签。
 
-V3.6.4 实盘交易计划：
+V3.6.5 实盘交易计划：
 1. 自动生成观察价：5日线附近。
 2. 自动生成半仓参考价：5日线附近小幅站稳。
 3. 自动生成回踩接回价：回踩5日线不破后重新拉起。
@@ -51,13 +57,13 @@ V3.6.4 实盘交易计划：
 6. 自动生成清仓条件：连续3天站不回5日线清仓。</div></div></div>
 
 <div class="card"><h2>观察池</h2><div id="watchCards" class="mobile-cards"><div class="small">暂无观察股票。</div></div></div>
-<div class="card"><h2>数据管理</h2><div class="btns"><button class="gray" onclick="health()">检测后端</button><button class="gray" onclick="testRealData()">测试真实数据</button><button class="red" onclick="clearAll()">清空观察池</button></div><div id="healthResult" class="result">点击检测后端。</div></div>
-<div class="footer">5日线强势股交易纪律系统 V3.6.4 · 实盘交易计划版</div></div>
+<div class="card"><h2>数据管理</h2><div class="btns"><button class="gray" onclick="health()">检测后端</button><button class="gray" onclick="testMarket()">测试大盘情绪</button><button class="gray" onclick="testRealData()">测试真实数据</button><button class="red" onclick="clearAll()">清空观察池</button></div><div id="healthResult" class="result">点击检测后端。</div></div>
+<div class="footer">5日线强势股交易纪律系统 V3.6.5 · 实盘交易计划版</div></div>
 
 <script>
 let lastAnalysis=null,lastBatchResults=[],lastHotResults=[],allHotResultsBackup=[],hotFilter="all",deepOffset=0,currentTheme=null;
 let autoRunning=false,autoTimer=null,autoRounds=0;
-const STORE="stock5_v364_watch";
+const STORE="stock5_v365_watch";
 function showTab(n){["smart","single","batch","rules"].forEach(x=>document.getElementById(x+"Panel").classList.toggle("hide",x!==n));["Smart","Single","Batch","Rules"].forEach(x=>document.getElementById("tab"+x).classList.remove("active"));document.getElementById("tab"+(n==="smart"?"Smart":n==="single"?"Single":n==="batch"?"Batch":"Rules")).classList.add("active")}
 function baseFrom(id){const v=document.getElementById(id).value.trim();return v?v.replace(/\/$/,""):window.location.origin}
 function apiBase(){return baseFrom("apiBase")}function batchApiBase(){return baseFrom("batchApiBase")}function smartApiBase(){return baseFrom("smartApiBase")}
@@ -66,7 +72,7 @@ function load(){try{return JSON.parse(localStorage.getItem(STORE)||"[]")}catch(e
 function today(){return new Date().toISOString().slice(0,10)}
 async function safeJsonResponse(res){const text=await res.text();try{return JSON.parse(text)}catch(e){throw new Error("后端返回了非JSON。返回前80字："+text.slice(0,80))}}
 async function health(){const b=healthResult;b.textContent="正在检测...";try{const r=await fetch(apiBase()+"/api/health");b.textContent=JSON.stringify(await safeJsonResponse(r),null,2)}catch(e){b.textContent="后端连接失败：\n"+e.message}}
-async function smartHot(){stopAutoDeep(false);smartProgress.textContent="正在抓取热门候选并执行风险过滤，请稍等...";hotCards.innerHTML=`<div class="small">智能筛选中...</div>`;deepOffset=0;updateDeepBar();try{const r=await fetch(smartApiBase()+"/api/smart_hot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({min_pct:smartMinPct.value||5,quick_limit:35,enable_risk_filter:enableRiskFilter.checked,include_risk:includeRisk.checked})});const d=await safeJsonResponse(r);if(!d.ok){throw new Error((d.where?d.where+"：":"")+(d.error||"智能筛选失败"))}lastHotResults=d.results||[];allHotResultsBackup=[...lastHotResults];currentTheme=null;if(typeof selectedThemeInfo!=="undefined")selectedThemeInfo.textContent="当前未选择题材。";renderHot(d);smartProgress.textContent=`完成：返回 ${d.summary.success} 只，风险过滤 ${d.summary.riskfilter||0} 只。可点“自动连续分析”。`}catch(e){smartProgress.textContent="智能筛选失败："+e.message;hotCards.innerHTML=`<div class="bad">失败：${e.message}</div>`}}
+async function smartHot(){stopAutoDeep(false);smartProgress.textContent="正在抓取热门候选并执行风险过滤，请稍等...";hotCards.innerHTML=`<div class="small">智能筛选中...</div>`;deepOffset=0;updateDeepBar();try{const r=await fetch(smartApiBase()+"/api/smart_hot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({min_pct:smartMinPct.value||5,quick_limit:35,enable_risk_filter:enableRiskFilter.checked,include_risk:includeRisk.checked})});const d=await safeJsonResponse(r);if(!d.ok){throw new Error((d.where?d.where+"：":"")+(d.error||"智能筛选失败"))}lastHotResults=d.results||[];allHotResultsBackup=[...lastHotResults];currentTheme=null;if(typeof selectedThemeInfo!=="undefined")selectedThemeInfo.textContent="当前未选择题材。";renderMarket(d.market);renderHot(d);smartProgress.textContent=`完成：返回 ${d.summary.success} 只，风险过滤 ${d.summary.riskfilter||0} 只。可点“自动连续分析”。`}catch(e){smartProgress.textContent="智能筛选失败："+e.message;hotCards.innerHTML=`<div class="bad">失败：${e.message}</div>`}}
 function isNo688(s){return !(String(s||"").startsWith("688"))}
 function getDeepSymbols(){return lastHotResults.filter(x=>isNo688(x.symbol)&&!["riskfilter","ignore"].includes(x.category)).map(x=>x.symbol)}
 function getNameMap(){let m={};lastHotResults.forEach(x=>m[x.symbol]=x.name||x.symbol);return m}
@@ -137,6 +143,36 @@ function updateStatsFromList(){const safe=lastHotResults.filter(x=>["quality_saf
 不看：${lastHotResults.filter(x=>x.category==="ignore").length}
 进度：${deepOffset}/${getDeepSymbols().length}
 自动状态：${autoRunning?"运行中":"未运行"}`}
+
+function renderMarket(m){
+  if(!m){return}
+  const market=m.market||m;
+  if(typeof mScore!=="undefined")mScore.textContent=market.sentiment_score ?? "-";
+  if(typeof mLevel!=="undefined")mLevel.textContent=market.sentiment_level || "-";
+  if(typeof mUp!=="undefined")mUp.textContent=`${market.up_count||0}/${market.down_count||0}`;
+  if(typeof mLimit!=="undefined")mLimit.textContent=`${market.limit_up_count||0}/${market.limit_down_count||0}`;
+  const idx=(market.indices||[]).map(x=>`${x.name}:${fmt(x.pct_chg)}%`).join("　");
+  if(typeof marketDetail!=="undefined"){
+    marketDetail.innerHTML=`<b>指数：</b>${idx||"暂无"}<br>
+    <b>上涨/下跌：</b>${market.up_count||0}/${market.down_count||0}　
+    <b>涨停/跌停：</b>${market.limit_up_count||0}/${market.limit_down_count||0}<br>
+    <b>仓位系数：</b>${market.position_factor ?? "-"}<br>
+    <b>建议：</b>${market.suggestion||"暂无"}<br>
+    <span class="small">更新时间：${market.timestamp||""}</span>`;
+  }
+}
+async function testMarket(){
+  healthResult.textContent="正在检测大盘情绪...";
+  try{
+    const r=await fetch(apiBase()+"/api/market_sentiment");
+    const d=await safeJsonResponse(r);
+    renderMarket(d.market);
+    healthResult.textContent=JSON.stringify(d,null,2);
+  }catch(e){
+    healthResult.textContent="大盘情绪检测失败：\n"+e.message;
+  }
+}
+
 function renderThemes(themes){
   themeList.innerHTML=themes.length?themes.map((t,i)=>`<div class="theme-item" id="theme_${i}" onclick='clickTheme(${JSON.stringify(t).replace(/'/g,"&#39;")},${i})'><b>${i+1}. ${t.theme}</b><br><span class="${cls(t.pct_chg)}">涨幅：${fmt(t.pct_chg)}%</span><br><span class="small">点击查看题材股票</span></div>`).join(""):`<div class="small">题材接口暂时不可用，但热门股筛选仍可使用。</div>`
 }
@@ -154,6 +190,7 @@ async function clickTheme(t,i){
     if(!d.ok){throw new Error(d.error||"题材股票读取失败")}
     if(!allHotResultsBackup.length && lastHotResults.length){allHotResultsBackup=[...lastHotResults]}
     lastHotResults=d.results||[];
+    renderMarket(d.market);
     hotFilter="all";
     ["All","Quality","Safe","Watch","Near","Focus","Far","Emotion","Risk","Ignore"].forEach(x=>{const btn=document.getElementById("hf"+x); if(btn)btn.classList.remove("active")});
     if(document.getElementById("hfAll"))document.getElementById("hfAll").classList.add("active");
@@ -199,6 +236,16 @@ async function batchAnalyze(){const raw=symbolsList.value.trim();if(!raw){alert(
 
 
 
+
+function marketText(x){
+  const m=x.market_sentiment||{};
+  if(!m.level){return "";}
+  return `
+大盘情绪联动：${m.level}（${m.score}分）
+仓位系数：${m.position_factor ?? "-"}
+系统提醒：${m.suggestion||""}`;
+}
+
 function fundamentalText(x){
   const f=x.fundamental_profile||{};
   if(!f.enabled){return "";}
@@ -218,6 +265,17 @@ function fundamentalText(x){
 利好词：${(f.positive_keywords||[]).join("、") || "暂无明显"}
 利空词：${(f.negative_keywords||[]).join("、") || "暂无明显"}
 结论：${rd.conclusion||f.conclusion||"待验证"}`;
+}
+
+
+function marketHtml(x){
+  const m=x.market_sentiment||{};
+  if(!m.level){return "";}
+  return `<div class="advice-box">
+    <b>大盘情绪联动：</b>${m.level}（${m.score}分）<br>
+    <b>仓位系数：</b>${m.position_factor ?? "-"}<br>
+    <b>系统提醒：</b>${m.suggestion||""}
+  </div>`;
 }
 
 function fundamentalHtml(x){
@@ -276,7 +334,7 @@ function tradePlanHtml(x){
   return `<div class="planbox"><b>实盘交易计划：</b>${p.summary}<br><b>仓位：</b>${p.position_plan}<br><b>观察价：</b>${fmt(p.watch_price)}　<b>半仓：</b>${fmt(p.half_position_price)}<br><b>回踩接回：</b>${fmt(p.add_back_price)}　<b>止损：</b>${fmt(p.stop_loss_price)}<br><b>2:50检查：</b>${fmt(p.check_1450_price)}　<b>止盈：</b>${fmt(p.take_profit_1)} / ${fmt(p.take_profit_2)}<br><b>清仓：</b>${p.clear_condition}<br><b>步骤：</b><br>${(p.execution_steps||[]).map((s,i)=>`${i+1}. ${s}`).join("<br>")}</div>`;
 }
 
-function stockCard(x,rank,withAction){const q=x.quote||{},a=x.analysis||{},ad=x.advice||{},risk=x.risk_flags||[];return `<div class="stock-card ${x.category}"><div class="stock-head"><div><div class="rank">排名 ${rank}${x.quick_only?' · 快速候选':' · 已深度'}</div><div class="stock-title">${x.symbol}</div><div class="stock-name">${x.name||""}</div></div><div class="level">${ad.level}</div></div><div class="metrics"><div class="metric"><span>涨幅</span><b class="${cls(q.pct_chg)}">${fmt(q.pct_chg)}%</b></div><div class="metric"><span>智能分</span><b class="${(x.smart_score||0)>=80?'good':(x.smart_score||0)>=65?'mid':'bad'}">${x.smart_score||x.score}</b></div><div class="metric"><span>收盘 / MA5</span><b>${fmt(q.close)} / ${fmt(a.ma5)}</b></div><div class="metric"><span>距5日线</span><b class="${cls(a.distance_ma5_pct)}">${fmt(a.distance_ma5_pct)}%</b></div><div class="metric"><span>成交额</span><b>${money(q.amount)}</b></div><div class="metric"><span>换手率</span><b>${fmt(q.turnover)}%</b></div></div><div>${(x.tags||[]).map(t=>`<span class="pill ${(t.includes('风险')||t.includes('过滤')||t.includes('过高')||t.includes('不足'))?'riskpill':(t.includes('技术强')||t.includes('短线')?'techpill':(t.includes('安全')?'safepill':''))}">${t}</span>`).join("")}</div><div class="advice-box"><b>操作建议：</b>${ad.action}<br><b>仓位：</b>${ad.position}<br><b>风控：</b>${ad.risk}</div>${fundamentalHtml(x)}${tradePlanHtml(x)}${withAction?`<div class="card-actions"><button onclick='copyCode("${x.symbol}")'>复制代码</button><button onclick='goAnalyze("${x.symbol}")'>单股分析</button><button class="green" onclick='addToWatchObj("${x.symbol}")'>观察池</button></div>`:""}</div>`}
+function stockCard(x,rank,withAction){const q=x.quote||{},a=x.analysis||{},ad=x.advice||{},risk=x.risk_flags||[];return `<div class="stock-card ${x.category}"><div class="stock-head"><div><div class="rank">排名 ${rank}${x.quick_only?' · 快速候选':' · 已深度'}</div><div class="stock-title">${x.symbol}</div><div class="stock-name">${x.name||""}</div></div><div class="level">${ad.level}</div></div><div class="metrics"><div class="metric"><span>涨幅</span><b class="${cls(q.pct_chg)}">${fmt(q.pct_chg)}%</b></div><div class="metric"><span>智能分</span><b class="${(x.smart_score||0)>=80?'good':(x.smart_score||0)>=65?'mid':'bad'}">${x.smart_score||x.score}</b></div><div class="metric"><span>收盘 / MA5</span><b>${fmt(q.close)} / ${fmt(a.ma5)}</b></div><div class="metric"><span>距5日线</span><b class="${cls(a.distance_ma5_pct)}">${fmt(a.distance_ma5_pct)}%</b></div><div class="metric"><span>成交额</span><b>${money(q.amount)}</b></div><div class="metric"><span>换手率</span><b>${fmt(q.turnover)}%</b></div></div><div>${(x.tags||[]).map(t=>`<span class="pill ${(t.includes('风险')||t.includes('过滤')||t.includes('过高')||t.includes('不足'))?'riskpill':(t.includes('技术强')||t.includes('短线')?'techpill':(t.includes('安全')?'safepill':''))}">${t}</span>`).join("")}</div><div class="advice-box"><b>操作建议：</b>${ad.action}<br><b>仓位：</b>${ad.position}<br><b>风控：</b>${ad.risk}</div>${marketHtml(x)}${fundamentalHtml(x)}${tradePlanHtml(x)}${withAction?`<div class="card-actions"><button onclick='copyCode("${x.symbol}")'>复制代码</button><button onclick='goAnalyze("${x.symbol}")'>单股分析</button><button class="green" onclick='addToWatchObj("${x.symbol}")'>观察池</button></div>`:""}</div>`}
 function goAnalyze(s){showTab('single');document.getElementById('symbol').value=s;window.scrollTo(0,0)}
 function findObj(sym){return [...lastHotResults,...lastBatchResults].find(x=>x.symbol===sym)||lastAnalysis}
 function copyCode(s){navigator.clipboard&&navigator.clipboard.writeText(s);alert("已复制："+s)}

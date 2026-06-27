@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.6.4-theme-auto-deep",
+        "version": "3.6.5-market-sentiment",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -1022,7 +1022,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.4-theme-auto-deep", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持题材点击后自动深度分析、最新财报修正、技术优先、基本面辅助与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.5-market-sentiment", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持大盘情绪联动、题材点击后自动深度分析、最新财报修正与实盘交易计划"})
 
 
 
@@ -1032,7 +1032,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.6.4-theme-auto-deep",
+            "version": "3.6.5-market-sentiment",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1061,7 +1061,219 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.4-theme-auto-deep", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.5-market-sentiment", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+
+
+
+
+def fetch_market_sentiment() -> Dict[str, Any]:
+    """
+    大盘情绪快照：
+    - 指数：上证、深成指、创业板
+    - 全市场上涨/下跌家数
+    - 涨停/跌停家数（按10%近似，含创业板20%会有偏差，作为情绪参考）
+    """
+    result = {
+        "ok": False,
+        "source": "eastmoney_push2",
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "indices": [],
+        "up_count": 0,
+        "down_count": 0,
+        "flat_count": 0,
+        "limit_up_count": 0,
+        "limit_down_count": 0,
+        "total": 0,
+        "up_ratio": None,
+        "sentiment_score": 50,
+        "sentiment_level": "中性",
+        "position_factor": 0.5,
+        "suggestion": "大盘中性，按个股5日线纪律执行。",
+        "errors": [],
+    }
+    headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"}
+
+    try:
+        # 指数行情
+        idx_url = "https://push2.eastmoney.com/api/qt/ulist.np/get"
+        idx_params = {
+            "fltt": "2",
+            "secids": "1.000001,0.399001,0.399006",
+            "fields": "f12,f14,f2,f3,f4,f6",
+            "_": str(int(datetime.now().timestamp() * 1000)),
+        }
+        r = requests.get(idx_url, params=idx_params, headers=headers, timeout=10)
+        r.raise_for_status()
+        idx_rows = (((r.json() or {}).get("data") or {}).get("diff") or [])
+        for row in idx_rows:
+            result["indices"].append({
+                "code": safe_str(row.get("f12")),
+                "name": safe_str(row.get("f14")),
+                "price": safe_float(row.get("f2")),
+                "pct_chg": safe_float(row.get("f3")),
+                "amount": safe_float(row.get("f6")),
+            })
+    except Exception as e:
+        result["errors"].append("index:" + str(e)[:120])
+
+    try:
+        # 全A快照，尽量取较多股票用于情绪统计
+        url = "https://push2.eastmoney.com/api/qt/clist/get"
+        params = {
+            "pn": "1",
+            "pz": "5000",
+            "po": "1",
+            "np": "1",
+            "fltt": "2",
+            "invt": "2",
+            "fid": "f3",
+            "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",
+            "fields": "f12,f14,f2,f3,f6,f8",
+            "_": str(int(datetime.now().timestamp() * 1000)),
+        }
+        r = requests.get(url, params=params, headers=headers, timeout=15)
+        r.raise_for_status()
+        rows = (((r.json() or {}).get("data") or {}).get("diff") or [])
+        up = down = flat = lu = ld = total = 0
+        for row in rows:
+            code = safe_str(row.get("f12"))
+            if not code or code.startswith(("688", "8", "4")):
+                continue
+            pct = safe_float(row.get("f3"))
+            if pct is None:
+                continue
+            total += 1
+            if pct > 0:
+                up += 1
+            elif pct < 0:
+                down += 1
+            else:
+                flat += 1
+            if pct >= 9.7:
+                lu += 1
+            if pct <= -9.7:
+                ld += 1
+
+        result.update({
+            "up_count": up,
+            "down_count": down,
+            "flat_count": flat,
+            "limit_up_count": lu,
+            "limit_down_count": ld,
+            "total": total,
+            "up_ratio": round(up / total * 100, 2) if total else None,
+        })
+
+        score = 50
+        up_ratio = result["up_ratio"] or 0
+        if up_ratio >= 65:
+            score += 18
+        elif up_ratio >= 55:
+            score += 10
+        elif up_ratio <= 35:
+            score -= 18
+        elif up_ratio <= 45:
+            score -= 10
+
+        score += min(16, lu * 0.35)
+        score -= min(16, ld * 1.5)
+
+        idx_pcts = [x.get("pct_chg") for x in result["indices"] if x.get("pct_chg") is not None]
+        if idx_pcts:
+            avg_idx = sum(idx_pcts) / len(idx_pcts)
+            if avg_idx >= 1.0:
+                score += 12
+            elif avg_idx >= 0.3:
+                score += 6
+            elif avg_idx <= -1.0:
+                score -= 14
+            elif avg_idx <= -0.3:
+                score -= 7
+
+        score = int(max(0, min(100, round(score))))
+        result["sentiment_score"] = score
+
+        if score >= 75:
+            level = "强势"
+            factor = 0.8
+            suggestion = "大盘情绪强，可优先观察技术合格且接近5日线的票，但仍不能追高满仓。"
+        elif score >= 60:
+            level = "偏强"
+            factor = 0.65
+            suggestion = "大盘偏强，按计划分批，优先安全买点。"
+        elif score >= 45:
+            level = "中性"
+            factor = 0.5
+            suggestion = "大盘中性，严格按5日线纪律，不放大仓位。"
+        elif score >= 30:
+            level = "偏弱"
+            factor = 0.33
+            suggestion = "大盘偏弱，只做小仓观察，远离5日线不追。"
+        else:
+            level = "弱势"
+            factor = 0.2
+            suggestion = "大盘弱势，原则上少操作或不操作，只保留最强且接近5日线的观察。"
+
+        result["sentiment_level"] = level
+        result["position_factor"] = factor
+        result["suggestion"] = suggestion
+        result["ok"] = True
+    except Exception as e:
+        result["errors"].append("breadth:" + str(e)[:120])
+
+    return result
+
+
+def apply_market_sentiment_to_stock(item: Dict[str, Any], market: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    把大盘情绪加入个股卡片，不改变原始5日线规则，只调整仓位和提醒。
+    """
+    if not item or not market:
+        return item
+    score = market.get("sentiment_score", 50)
+    level = market.get("sentiment_level", "中性")
+    factor = market.get("position_factor", 0.5)
+
+    market_note = f"大盘情绪：{level}（{score}分）。{market.get('suggestion','')}"
+    item["market_sentiment"] = {
+        "score": score,
+        "level": level,
+        "position_factor": factor,
+        "suggestion": market.get("suggestion", ""),
+    }
+
+    cat = item.get("category", "")
+    base_position = item.get("position", "") or item.get("position_advice", "")
+
+    if score < 45:
+        if cat in ["quality_safe_near", "safe_near", "near"]:
+            item["position"] = (base_position + "；" if base_position else "") + "大盘偏弱，仓位自动降级，只能小仓确认。"
+            item.setdefault("tags", []).append("大盘降仓")
+            item["smart_score"] = max(0, int(item.get("smart_score", 0)) - 5)
+        elif cat in ["far", "focus", "watch"]:
+            item["position"] = (base_position + "；" if base_position else "") + "大盘偏弱，远离5日线不追。"
+            item.setdefault("tags", []).append("大盘偏弱")
+            item["smart_score"] = max(0, int(item.get("smart_score", 0)) - 8)
+    elif score >= 75:
+        if cat in ["quality_safe_near", "safe_near"]:
+            item["position"] = (base_position + "；" if base_position else "") + "大盘强势，允许按计划分批，但仍不能一次满仓。"
+            item.setdefault("tags", []).append("大盘配合")
+            item["smart_score"] = min(100, int(item.get("smart_score", 0)) + 3)
+
+    item["market_note"] = market_note
+    return item
+
+
+@app.route("/api/market_sentiment")
+def api_market_sentiment():
+    try:
+        return jsonify({
+            "ok": True,
+            "version": "3.6.5-market-sentiment",
+            "market": fetch_market_sentiment(),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "version": "3.6.5-market-sentiment", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1133,7 +1345,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.6.4-theme-auto-deep",
+            "version": "3.6.5-market-sentiment",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -1142,7 +1354,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.4-theme-auto-deep",
+            "version": "3.6.5-market-sentiment",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -1163,7 +1375,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.4-theme-auto-deep", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.5-market-sentiment", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -1171,7 +1383,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.6.4-theme-auto-deep", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.6.5-market-sentiment", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -1205,7 +1417,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.4-theme-auto-deep", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.5-market-sentiment", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
