@@ -44,8 +44,7 @@ def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
             if name in cols:
                 result[key] = name
                 break
-    required = ["date", "open", "close", "high", "low", "volume"]
-    missing = [k for k in required if k not in result]
+    missing = [k for k in ["date", "open", "close", "high", "low", "volume"] if k not in result]
     if missing:
         raise ValueError(f"行情字段不完整，缺少：{missing}，当前字段：{cols}")
     return result
@@ -54,13 +53,7 @@ def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
     import akshare as ak
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
-    df = ak.stock_zh_a_hist(
-        symbol=symbol,
-        period="daily",
-        start_date=start_date,
-        end_date=end_date,
-        adjust=adjust or "",
-    )
+    df = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust=adjust or "")
     if df is None or df.empty:
         raise ValueError("没有获取到行情数据，可能是代码错误、停牌或 AKShare 数据源暂时不可用")
     return df
@@ -68,7 +61,6 @@ def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
 def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
     symbol = normalize_symbol(symbol)
     adjust = adjust if adjust in ["", "qfq", "hfq"] else ""
-
     df = fetch_hist(symbol, adjust)
     cols = detect_columns(df)
     work = df.copy()
@@ -132,42 +124,35 @@ def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
     above_ma10 = ma10 is not None and last_close >= ma10
     above_ma20 = ma20 is not None and last_close >= ma20
     far_from_ma5 = distance_ma5_pct is not None and distance_ma5_pct >= 6
+    near_buy_point = rise_over_5 and above_ma5 and distance_ma5_pct is not None and 0 <= distance_ma5_pct <= 3
     near_ma5 = distance_ma5_pct is not None and -1 <= distance_ma5_pct <= 3
 
     score = 0
-    if rise_over_5:
-        score += 2
-    if volume_breakout:
-        score += 2
-    elif volume_above_avg:
-        score += 1
-    if big_yang:
-        score += 2
-    elif last_close > last_open:
-        score += 1
-    if above_ma5:
-        score += 2
-    if above_ma10 or above_ma20:
-        score += 1
-    if distance_ma5_pct is not None and 0 <= distance_ma5_pct <= 8:
-        score += 1
+    if rise_over_5: score += 2
+    if volume_breakout: score += 2
+    elif volume_above_avg: score += 1
+    if big_yang: score += 2
+    elif last_close > last_open: score += 1
+    if above_ma5: score += 2
+    if above_ma10 or above_ma20: score += 1
+    if distance_ma5_pct is not None and 0 <= distance_ma5_pct <= 8: score += 1
 
     if not rise_over_5:
-        level, action, position, risk, rank, category = "不看", "涨幅没有超过5%，不符合强势股第一条件。", "不买。", "没有明显主力进攻信号。", 5, "ignore"
+        level, action, position, risk, rank, category = "不看", "涨幅没有超过5%，不符合强势股第一条件。", "不买。", "没有明显主力进攻信号。", 6, "ignore"
     elif below_days >= 3:
-        level, action, position, risk, rank, category = "清仓信号", "连续3天收盘没有站回5日线，短线趋势失效。", "已有仓位应清仓；没有仓位不进。", "趋势失效，不要幻想。", 4, "risk"
+        level, action, position, risk, rank, category = "清仓信号", "连续3天收盘没有站回5日线，短线趋势失效。", "已有仓位应清仓；没有仓位不进。", "趋势失效，不要幻想。", 5, "risk"
     elif not above_ma5:
-        level, action, position, risk, rank, category = "风控信号", "股价跌破5日线，尾盘站不回先减一半仓。", "不加仓；已有仓位减半或观察到尾盘。", "连续3天站不回5日线，清仓。", 3, "risk"
+        level, action, position, risk, rank, category = "风控信号", "股价跌破5日线，尾盘站不回先减一半仓。", "不加仓；已有仓位减半或观察到尾盘。", "连续3天站不回5日线，清仓。", 4, "risk"
+    elif near_buy_point and score >= 7:
+        level, action, position, risk, rank, category = "接近买点", "涨幅超过5%，站上5日线，且距离5日线不远，重点观察回踩不破机会。", "可按计划分批；先小仓确认，不能一次满仓。", "尾盘跌破5日线，减半仓。", 1, "near"
     elif far_from_ma5:
-        level, action, position, risk, rank, category = "强势但远离5日线", "股价强势，但已经远离5日线，不适合满仓追高。", "最多半仓；等回踩5日线不破再接回来。", "远离5日线容易冲高回落。", 2, "far"
-    elif score >= 8 and near_ma5:
-        level, action, position, risk, rank, category = "重点关注", "强势且接近5日线，重点看回踩不破机会。", "可以按计划分批，不能无脑满仓。", "尾盘跌破5日线，减半仓。", 1, "focus"
+        level, action, position, risk, rank, category = "强势但远离5日线", "股价强势，但已经远离5日线，不适合满仓追高。", "最多半仓；等回踩5日线不破再接回来。", "远离5日线容易冲高回落。", 3, "far"
     elif score >= 8:
-        level, action, position, risk, rank, category = "重点关注", "符合强势股条件，等回踩5日线附近不破。", "分批；远离5日线时不要满仓。", "尾盘跌破5日线，减半仓。", 1, "focus"
+        level, action, position, risk, rank, category = "重点关注", "符合强势股条件，等回踩5日线附近不破。", "分批；远离5日线时不要满仓。", "尾盘跌破5日线，减半仓。", 2, "focus"
     elif score >= 6:
-        level, action, position, risk, rank, category = "加入自选", "有一定强度，但还要等5日线附近确认。", "轻仓或等待；回踩不破再考虑。", "强度还不够，避免追高。", 2, "watch"
+        level, action, position, risk, rank, category = "加入自选", "有一定强度，但还要等5日线附近确认。", "轻仓或等待；回踩不破再考虑。", "强度还不够，避免追高。", 3, "watch"
     else:
-        level, action, position, risk, rank, category = "暂不操作", "条件不完整，先观察。", "不买或轻仓观察。", "信号不足，容易买到假突破。", 5, "ignore"
+        level, action, position, risk, rank, category = "暂不操作", "条件不完整，先观察。", "不买或轻仓观察。", "信号不足，容易买到假突破。", 6, "ignore"
 
     tags = [
         "涨幅超过5%" if rise_over_5 else "涨幅不足5%",
@@ -175,68 +160,27 @@ def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
         "大阳线" if big_yang else "非大阳线",
         "站上5日线" if above_ma5 else "跌破5日线",
     ]
-    if far_from_ma5:
-        tags.append("远离5日线")
-    if near_ma5 and above_ma5:
-        tags.append("靠近5日线")
+    if far_from_ma5: tags.append("远离5日线")
+    if near_buy_point: tags.append("接近买点")
+    elif near_ma5 and above_ma5: tags.append("靠近5日线")
 
     return {
-        "symbol": symbol,
-        "name": symbol,
-        "data_points": int(len(work)),
-        "rank": int(rank),
-        "category": category,
-        "score": int(score),
-        "tags": tags,
-        "quote": {
-            "date": str(last[cols["date"]].date()),
-            "open": last_open,
-            "close": last_close,
-            "high": last_high,
-            "low": last_low,
-            "volume": last_volume,
-            "amount": safe_float(last[cols["amount"]]) if "amount" in cols else None,
-            "pct_chg": pct_chg,
-        },
-        "analysis": {
-            "ma5": ma5,
-            "ma10": ma10,
-            "ma20": ma20,
-            "vol_ma5": vol_ma5,
-            "distance_ma5_pct": distance_ma5_pct,
-            "candle_body_pct": candle_body_pct,
-            "below_ma5_days": below_days,
-        },
-        "signals": {
-            "rise_over_5": rise_over_5,
-            "volume_breakout": volume_breakout,
-            "volume_above_avg": volume_above_avg,
-            "big_yang": big_yang,
-            "above_ma5": above_ma5,
-            "above_ma10": above_ma10,
-            "above_ma20": above_ma20,
-            "far_from_ma5": far_from_ma5,
-            "near_ma5": near_ma5,
-        },
-        "advice": {
-            "level": level,
-            "action": action,
-            "position": position,
-            "risk": risk,
-        },
+        "symbol": symbol, "name": symbol, "data_points": int(len(work)), "rank": int(rank), "category": category, "score": int(score), "tags": tags,
+        "quote": {"date": str(last[cols["date"]].date()), "open": last_open, "close": last_close, "high": last_high, "low": last_low, "volume": last_volume, "amount": safe_float(last[cols["amount"]]) if "amount" in cols else None, "pct_chg": pct_chg},
+        "analysis": {"ma5": ma5, "ma10": ma10, "ma20": ma20, "vol_ma5": vol_ma5, "distance_ma5_pct": distance_ma5_pct, "candle_body_pct": candle_body_pct, "below_ma5_days": below_days},
+        "signals": {"rise_over_5": rise_over_5, "volume_breakout": volume_breakout, "volume_above_avg": volume_above_avg, "big_yang": big_yang, "above_ma5": above_ma5, "above_ma10": above_ma10, "above_ma20": above_ma20, "far_from_ma5": far_from_ma5, "near_ma5": near_ma5, "near_buy_point": near_buy_point},
+        "advice": {"level": level, "action": action, "position": position, "risk": risk},
     }
 
 def parse_symbols(raw: str) -> List[str]:
     text = (raw or "").replace("，", ",").replace("、", ",").replace("\n", ",").replace(" ", ",")
     result, seen = [], set()
     for x in text.split(","):
-        if not x.strip():
-            continue
+        if not x.strip(): continue
         try:
             s = normalize_symbol(x)
             if s not in seen:
-                seen.add(s)
-                result.append(s)
+                seen.add(s); result.append(s)
         except Exception:
             pass
     return result
@@ -247,13 +191,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({
-        "ok": True,
-        "service": "stock-5day-system-v2",
-        "version": "2.1.1-mobile-cards",
-        "time": datetime.now().isoformat(timespec="seconds"),
-        "message": "后端正常，可以开始分析股票代码"
-    })
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "2.1.2-live-watch", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，可以开始分析股票代码"})
 
 @app.route("/api/analyze")
 def api_analyze():
@@ -272,34 +210,23 @@ def api_batch_analyze():
             raise ValueError("没有识别到有效股票代码，请输入6位股票代码")
         if len(symbols) > 30:
             symbols = symbols[:30]
-
         results, errors = [], []
         for sym in symbols:
             try:
                 results.append(analyze_stock(sym, adjust))
             except Exception as e:
                 errors.append({"symbol": sym, "error": str(e)})
-
         results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-
         summary = {
-            "total_input": len(symbols),
-            "success": len(results),
-            "failed": len(errors),
+            "total_input": len(symbols), "success": len(results), "failed": len(errors),
+            "near": len([x for x in results if x["category"] == "near"]),
             "focus": len([x for x in results if x["category"] == "focus"]),
             "watch": len([x for x in results if x["category"] in ["watch", "far"]]),
             "far": len([x for x in results if x["category"] == "far"]),
             "risk": len([x for x in results if x["category"] == "risk"]),
             "ignore": len([x for x in results if x["category"] == "ignore"]),
         }
-
-        return jsonify({
-            "ok": True,
-            "version": "2.1.1-mobile-cards",
-            "summary": summary,
-            "results": results,
-            "errors": errors,
-        })
+        return jsonify({"ok": True, "version": "2.1.2-live-watch", "summary": summary, "results": results, "errors": errors})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
