@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.6.9-mobile-ui",
+        "version": "3.7.0-valid-ma5-filter",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -97,7 +97,7 @@ def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
     missing = [k for k in ["date", "open", "close", "high", "low", "volume"] if k not in result]
     if missing:
         raise ValueError(f"行情字段不完整，缺少：{missing}，当前字段：{cols}")
-    return result
+    return mark_validity(result)
 
 
 def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
@@ -310,7 +310,7 @@ def fetch_real_announcements(symbol: str, limit: int = 8) -> Dict[str, Any]:
         result["negative_hits"] = [k for k in NEGATIVE_KEYWORDS if k in joined]
     except Exception as e:
         result["errors"].append("announcement:" + str(e)[:120])
-    return result
+    return mark_validity(result)
 
 
 
@@ -998,7 +998,7 @@ def parse_symbols(raw: str) -> List[str]:
                 seen.add(s); result.append(s)
         except Exception:
             pass
-    return result
+    return mark_validity(result)
 
 
 def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) -> Dict[str, Any]:
@@ -1026,7 +1026,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.9-mobile-ui", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.0-valid-ma5-filter", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1036,7 +1036,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.6.9-mobile-ui",
+            "version": "3.7.0-valid-ma5-filter",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1069,7 +1069,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.9-mobile-ui", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.0-valid-ma5-filter", "summary": build_summary(results, len(symbols), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
 
 
 
@@ -1282,7 +1282,7 @@ def stable_fetch_finance_from_akshare(symbol: str) -> Dict[str, Any]:
     except Exception as e:
         result["errors"].append("akshare_import:" + str(e)[:100])
         result["missing_reason"] = "AKShare 未安装或导入失败"
-        return result
+        return mark_validity(result)
 
     api_candidates = [
         ("stock_financial_analysis_indicator", {"symbol": symbol}),
@@ -1344,7 +1344,7 @@ def stable_fetch_finance_from_akshare(symbol: str) -> Dict[str, Any]:
             result["errors"].append(api_name + ":" + str(e)[:120])
 
     if not best_row:
-        return result
+        return mark_validity(result)
 
     profit_yoy = finance_pick(best_row, [["净利润", "同比"], ["净利润", "增长"], ["归母", "同比"], ["归属", "同比"]])
     revenue_yoy = finance_pick(best_row, [["营业收入", "同比"], ["营收", "同比"], ["主营", "增长"], ["营业收入", "增长"]])
@@ -1379,7 +1379,7 @@ def stable_fetch_finance_from_akshare(symbol: str) -> Dict[str, Any]:
         "confidence": "高" if fields_count >= 3 else ("中" if fields_count >= 2 else "低"),
         "missing_reason": "" if fields_count > 0 else "未匹配到有效财务字段",
     })
-    return result
+    return mark_validity(result)
 
 
 def stable_finance_unavailable(symbol: str, reason: str = "财报接口暂未返回有效字段") -> Dict[str, Any]:
@@ -1663,7 +1663,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.6.9-mobile-ui",
+            "version": "3.7.0-valid-ma5-filter",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1671,12 +1671,136 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.9-mobile-ui",
+            "version": "3.7.0-valid-ma5-filter",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
         }), 200
 
+
+
+
+# ===== V3.7 valid MA5 and abnormal stock filters =====
+def to_float_safe(v, default=None):
+    try:
+        if v is None:
+            return default
+        s = str(v).replace("%", "").replace(",", "").replace("亿", "").replace("万", "").strip()
+        if s in ["", "-", "--", "None", "nan", "暂无"]:
+            return default
+        return float(s)
+    except Exception:
+        return default
+
+def is_new_stock_like(symbol: str, name: str = "") -> bool:
+    """
+    过滤 N/C/U/W 等新股或特殊上市初期标识。
+    说明：C 字头名称在创业板/科创板上市前5个交易日常见，N 为上市首日。
+    """
+    symbol = safe_str(symbol)
+    name = safe_str(name).upper()
+    raw_name = safe_str(name)
+    if not symbol:
+        return True
+    if raw_name.startswith(("N", "C", "U", "W")):
+        return True
+    if "新股" in raw_name or "次新" in raw_name:
+        return True
+    # 北交所/新股异常一般不适合本5日线模型，先不过滤全部8字头，只过滤明显缺MA5或异常涨幅
+    return False
+
+def has_valid_ma5_item(item: Dict[str, Any]) -> bool:
+    ma5 = to_float_safe(item.get("ma5") or item.get("MA5") or item.get("ma_5"), None)
+    close = to_float_safe(item.get("close") or item.get("price") or item.get("收盘"), None)
+    if ma5 is None or close is None:
+        return False
+    if ma5 <= 0 or close <= 0:
+        return False
+    return True
+
+def abnormal_pct_item(item: Dict[str, Any], max_pct: float = 30.0) -> bool:
+    pct = to_float_safe(item.get("pct_chg") or item.get("change_pct") or item.get("涨幅") or item.get("pct"), None)
+    if pct is None:
+        return False
+    return abs(pct) > max_pct
+
+def mark_validity(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    给股票打上数据有效性标签。不会破坏原字段。
+    """
+    x = dict(item or {})
+    symbol = safe_str(x.get("symbol") or x.get("code"))
+    name = safe_str(x.get("name"))
+    invalid_reasons = []
+
+    if is_new_stock_like(symbol, name):
+        invalid_reasons.append("新股/特殊上市标识")
+    if abnormal_pct_item(x, 30):
+        invalid_reasons.append("涨幅异常超过30%")
+    if not has_valid_ma5_item(x):
+        invalid_reasons.append("MA5缺失或无效")
+
+    # 低价和成交额过滤继续保留，但不是绝对无效原因，可作为风险
+    close = to_float_safe(x.get("close") or x.get("price"), None)
+    if close is not None and close < 2:
+        invalid_reasons.append("低价股风险")
+    amount_raw = x.get("amount") or x.get("成交额") or x.get("turnover_amount")
+    amount = to_float_safe(amount_raw, None)
+    # 如果字段单位是元，1亿=100000000；如果已经是亿，低于1也算不足
+    if amount is not None:
+        if amount < 1:
+            invalid_reasons.append("成交额不足1亿")
+        elif amount > 10000 and amount < 100000000:
+            invalid_reasons.append("成交额不足1亿")
+
+    x["valid_ma5"] = has_valid_ma5_item(x)
+    x["valid_for_5day_system"] = len(invalid_reasons) == 0
+    x["invalid_reasons"] = invalid_reasons
+    x["data_quality"] = "有效5日线" if len(invalid_reasons) == 0 else "数据不足/风险过滤"
+
+    if invalid_reasons:
+        # 没有有效5日线或异常票，不能给高分
+        old_score = to_float_safe(x.get("score") or x.get("smart_score"), 0) or 0
+        capped = min(int(old_score), 59)
+        x["score"] = capped
+        x["smart_score"] = capped
+        x["tag"] = "风险过滤"
+        x["advice"] = "触发风险过滤，先排除，不作为5日线候选。"
+        x["conclusion"] = "数据不足或异常波动，不参与5日线交易计划。"
+        x["trading_plan"] = "无有效5日线或触发异常过滤，不能生成实盘交易计划。"
+        x["trading_plan_text"] = x["trading_plan"]
+        x.setdefault("risk_text", "、".join(invalid_reasons))
+    else:
+        tags = x.get("tags") or []
+        if isinstance(tags, list) and "有效5日线" not in tags:
+            tags.append("有效5日线")
+            x["tags"] = tags
+        x["data_quality"] = "有效5日线"
+    return x
+
+def filter_valid_candidates(items, keep_invalid: bool = False):
+    """
+    默认剔除无效候选；如果 keep_invalid=True，则保留但降分标红。
+    """
+    out = []
+    removed = []
+    for item in items or []:
+        x = mark_validity(item)
+        if x.get("valid_for_5day_system") or keep_invalid:
+            out.append(x)
+        else:
+            removed.append(x)
+    return out, removed
+
+def sort_valid_candidates(items):
+    def key(x):
+        return (
+            1 if x.get("valid_for_5day_system") else 0,
+            to_float_safe(x.get("score") or x.get("smart_score"), 0) or 0,
+            to_float_safe(x.get("pct_chg") or x.get("change_pct"), 0) or 0,
+        )
+    return sorted(items or [], key=key, reverse=True)
+# ===== end V3.7 filters =====
 
 
 def get_trading_session_status() -> Dict[str, Any]:
@@ -1783,11 +1907,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.9-mobile-ui",
+            "version": "3.7.0-valid-ma5-filter",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.9-mobile-ui", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.0-valid-ma5-filter", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1946,7 +2070,7 @@ def fetch_market_sentiment() -> Dict[str, Any]:
     except Exception as e:
         result["errors"].append("breadth:" + str(e)[:120])
 
-    return result
+    return mark_validity(result)
 
 
 def apply_market_sentiment_to_stock(item: Dict[str, Any], market: Dict[str, Any]) -> Dict[str, Any]:
@@ -1994,11 +2118,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.9-mobile-ui",
+            "version": "3.7.0-valid-ma5-filter",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.9-mobile-ui", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.0-valid-ma5-filter", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2074,16 +2198,16 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.6.9-mobile-ui",
+            "version": "3.7.0-valid-ma5-filter",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
-            "results": results,
+            "results": sort_valid_candidates([mark_validity(x) for x in results]),
         })
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.9-mobile-ui",
+            "version": "3.7.0-valid-ma5-filter",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -2108,7 +2232,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.9-mobile-ui", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.0-valid-ma5-filter", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -2116,7 +2240,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.6.9-mobile-ui", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.7.0-valid-ma5-filter", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -2150,8 +2274,26 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.9-mobile-ui", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.0-valid-ma5-filter", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
 
+
+
+@app.route("/api/filter_status", methods=["GET"])
+def api_filter_status():
+    return jsonify({
+        "ok": True,
+        "version": "3.7.0-valid-ma5-filter",
+        "filters": [
+            "排除 N/C/U/W 新股或特殊上市标识",
+            "排除涨幅超过30%的异常波动票",
+            "排除 MA5 缺失或无效股票",
+            "排除低价股风险",
+            "排除成交额不足1亿风险",
+            "无有效MA5不生成交易计划",
+            "异常候选最高分限制为59分"
+        ],
+        "principle": "没有有效5日线，就不参与5日线交易纪律评分。"
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
