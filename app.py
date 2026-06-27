@@ -3,13 +3,17 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, List
+import json
 import traceback
+
 import pandas as pd
+import requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
+
 
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -17,9 +21,11 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "hint": "后端发生异常，但已经被 V3.0.2 捕获为 JSON。请检查 AKShare 数据源或降低筛选数量。",
-        "trace_tail": traceback.format_exc()[-1200:],
+        "version": "3.0.3-eastmoney-fallback",
+        "hint": "后端异常已被捕获。若今日智能筛选失败，请先检测后端，再降低数量。",
+        "trace_tail": traceback.format_exc()[-1000:],
     }), 500
+
 
 def normalize_symbol(symbol: str) -> str:
     s = (symbol or "").strip().lower()
@@ -30,21 +36,28 @@ def normalize_symbol(symbol: str) -> str:
         raise ValueError("股票代码必须是6位数字，例如 300592、000001、600519")
     return s
 
+
 def safe_float(v: Any) -> Optional[float]:
     try:
+        if v is None or v == "-" or v == "":
+            return None
         if pd.isna(v):
             return None
         return float(v)
     except Exception:
         return None
 
+
 def safe_str(v: Any) -> str:
     try:
+        if v is None:
+            return ""
         if pd.isna(v):
             return ""
         return str(v)
     except Exception:
         return ""
+
 
 def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
     candidates = {
@@ -70,6 +83,7 @@ def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
         raise ValueError(f"行情字段不完整，缺少：{missing}，当前字段：{cols}")
     return result
 
+
 def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
     import akshare as ak
     end_date = datetime.now().strftime("%Y%m%d")
@@ -78,6 +92,7 @@ def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
     if df is None or df.empty:
         raise ValueError("没有获取到行情数据，可能是代码错误、停牌或 AKShare 数据源暂时不可用")
     return df
+
 
 def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     symbol = normalize_symbol(symbol)
@@ -227,6 +242,7 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
         "advice": {"level": level, "action": action, "position": position, "risk": risk},
     }
 
+
 def quick_score_from_spot(item: Dict[str, Any]) -> Dict[str, Any]:
     pct = item.get("pct_chg") or 0
     amount = item.get("amount") or 0
@@ -279,73 +295,105 @@ def quick_score_from_spot(item: Dict[str, Any]) -> Dict[str, Any]:
         "quick_only": True,
     }
 
-def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
-    import akshare as ak
-    spot = ak.stock_zh_a_spot_em()
-    if spot is None or spot.empty:
-        raise ValueError("没有获取到 A 股实时行情")
 
-    cols = list(spot.columns)
-    code_col = "代码" if "代码" in cols else None
-    name_col = "名称" if "名称" in cols else None
-    pct_col = "涨跌幅" if "涨跌幅" in cols else None
-    price_col = "最新价" if "最新价" in cols else None
-    amount_col = "成交额" if "成交额" in cols else None
-    turnover_col = "换手率" if "换手率" in cols else None
-    if not code_col or not pct_col:
-        raise ValueError(f"实时行情字段不完整，当前字段：{cols}")
+def market_prefix(code: str) -> str:
+    # 东方财富 secid：1.上海，0.深圳
+    if code.startswith(("60", "68")):
+        return "1."
+    return "0."
 
-    df = spot.copy()
-    df[code_col] = df[code_col].astype(str)
-    df = df[df[code_col].str.len() == 6]
-    df = df[df[code_col].str.startswith(("00", "30", "60", "68"))]
-    for c in [pct_col, price_col, amount_col, turnover_col]:
-        if c:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    gainers = df.sort_values(pct_col, ascending=False).head(limit)
-    amount_top = df.sort_values(amount_col, ascending=False).head(limit) if amount_col else df.head(0)
-    turnover_top = df.sort_values(turnover_col, ascending=False).head(limit) if turnover_col else df.head(0)
-    pool = pd.concat([gainers, amount_top, turnover_top], ignore_index=True).drop_duplicates(subset=[code_col])
-
-    candidates = []
-    for _, row in pool.iterrows():
-        code = safe_str(row[code_col])
-        if len(code) != 6:
+def fetch_eastmoney_spot(page_size: int = 80, sort_field: str = "f3") -> List[Dict[str, Any]]:
+    # f12代码 f14名称 f2最新价 f3涨跌幅 f6成交额 f8换手率
+    url = "https://push2.eastmoney.com/api/qt/clist/get"
+    params = {
+        "pn": "1",
+        "pz": str(page_size),
+        "po": "1",
+        "np": "1",
+        "fltt": "2",
+        "invt": "2",
+        "fid": sort_field,
+        "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",
+        "fields": "f12,f14,f2,f3,f6,f8",
+        "_": str(int(datetime.now().timestamp() * 1000)),
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://quote.eastmoney.com/",
+    }
+    r = requests.get(url, params=params, headers=headers, timeout=12)
+    r.raise_for_status()
+    data = r.json()
+    rows = (((data or {}).get("data") or {}).get("diff") or [])
+    out = []
+    for row in rows:
+        code = safe_str(row.get("f12"))
+        if len(code) != 6 or not code.startswith(("00", "30", "60", "68")):
             continue
-        candidates.append({
+        out.append({
             "symbol": code,
-            "name": safe_str(row[name_col]) if name_col else code,
-            "pct_chg": safe_float(row[pct_col]) if pct_col else None,
-            "price": safe_float(row[price_col]) if price_col else None,
-            "amount": safe_float(row[amount_col]) if amount_col else None,
-            "turnover": safe_float(row[turnover_col]) if turnover_col else None,
+            "name": safe_str(row.get("f14")),
+            "price": safe_float(row.get("f2")),
+            "pct_chg": safe_float(row.get("f3")),
+            "amount": safe_float(row.get("f6")),
+            "turnover": safe_float(row.get("f8")),
+            "secid": market_prefix(code) + code,
         })
-    return {"candidates": candidates, "source_count": int(len(df))}
+    return out
+
+
+def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
+    # 使用东方财富接口，避免 Railway 上 AKShare 全市场接口崩溃
+    all_rows: List[Dict[str, Any]] = []
+    errors = []
+    for sort_field in ["f3", "f6", "f8"]:
+        try:
+            all_rows.extend(fetch_eastmoney_spot(page_size=limit, sort_field=sort_field))
+        except Exception as e:
+            errors.append(f"{sort_field}:{e}")
+
+    if not all_rows:
+        raise ValueError("东方财富实时行情接口不可用：" + " | ".join(errors))
+
+    seen = {}
+    for item in all_rows:
+        seen[item["symbol"]] = item
+
+    candidates = list(seen.values())
+    candidates.sort(key=lambda x: (-(x.get("pct_chg") or -999), -(x.get("amount") or 0), -(x.get("turnover") or 0)))
+    return {"candidates": candidates[:limit], "source_count": len(candidates), "errors": errors}
+
 
 def try_fetch_theme_board(limit: int = 20) -> List[Dict[str, Any]]:
     try:
-        import akshare as ak
-        board = ak.stock_board_concept_name_em()
-        if board is None or board.empty:
-            return []
-        cols = list(board.columns)
-        name_col = "板块名称" if "板块名称" in cols else ("名称" if "名称" in cols else None)
-        pct_col = "涨跌幅" if "涨跌幅" in cols else None
-        if not name_col:
-            return []
-        if pct_col:
-            board[pct_col] = pd.to_numeric(board[pct_col], errors="coerce")
-            board = board.sort_values(pct_col, ascending=False)
-        return [{"theme": safe_str(r[name_col]), "pct_chg": safe_float(r[pct_col]) if pct_col else None} for _, r in board.head(limit).iterrows()]
+        url = "https://push2.eastmoney.com/api/qt/clist/get"
+        params = {
+            "pn": "1",
+            "pz": str(limit),
+            "po": "1",
+            "np": "1",
+            "fltt": "2",
+            "invt": "2",
+            "fid": "f3",
+            "fs": "m:90+t:3",
+            "fields": "f12,f14,f3",
+            "_": str(int(datetime.now().timestamp() * 1000)),
+        }
+        r = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        r.raise_for_status()
+        rows = (((r.json() or {}).get("data") or {}).get("diff") or [])
+        return [{"theme": safe_str(x.get("f14")), "pct_chg": safe_float(x.get("f3"))} for x in rows[:limit]]
     except Exception:
         return []
+
 
 def parse_symbols(raw: str) -> List[str]:
     text = (raw or "").replace("，", ",").replace("、", ",").replace("\n", ",").replace(" ", ",")
     result, seen = [], set()
     for x in text.split(","):
-        if not x.strip(): continue
+        if not x.strip():
+            continue
         try:
             s = normalize_symbol(x)
             if s not in seen:
@@ -353,6 +401,7 @@ def parse_symbols(raw: str) -> List[str]:
         except Exception:
             pass
     return result
+
 
 def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) -> Dict[str, Any]:
     return {
@@ -368,13 +417,22 @@ def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) 
         "quick_only": len([x for x in results if x.get("quick_only")]),
     }
 
+
 @app.route("/")
 def index():
     return send_from_directory(".", "index.html")
 
+
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.0.2-safe-json", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，V3.0.2 已启用异常 JSON 捕获"})
+    return jsonify({
+        "ok": True,
+        "service": "stock-5day-system-v2",
+        "version": "3.0.3-eastmoney-fallback",
+        "time": datetime.now().isoformat(timespec="seconds"),
+        "message": "后端正常，今日智能筛选已改用东方财富备用行情"
+    })
+
 
 @app.route("/api/analyze")
 def api_analyze():
@@ -382,6 +440,7 @@ def api_analyze():
         return jsonify(analyze_stock(request.args.get("symbol", ""), request.args.get("adjust", "")))
     except Exception as e:
         return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__}), 400
+
 
 @app.route("/api/batch_analyze", methods=["POST"])
 def api_batch_analyze():
@@ -396,7 +455,8 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.0.2-safe-json", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.0.3-eastmoney-fallback", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
 def api_smart_hot():
@@ -414,9 +474,9 @@ def api_smart_hot():
             "ok": False,
             "error": str(e),
             "type": e.__class__.__name__,
-            "where": "get_spot_candidates",
-            "hint": "实时行情源不可用。稍后重试，或先用单股分析。",
-            "version": "3.0.2-safe-json",
+            "where": "eastmoney_spot",
+            "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。",
+            "version": "3.0.3-eastmoney-fallback",
             "summary": build_summary([], 0, 1),
             "themes": [],
             "results": [],
@@ -427,7 +487,6 @@ def api_smart_hot():
     quick_results = [quick_score_from_spot(x) for x in candidates]
     quick_results.sort(key=lambda x: (-(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
 
-    # 默认 deep_limit=0，避免 Railway 超时；用户需要深度看时用单股分析
     deep_candidates = [x for x in candidates if (x.get("pct_chg") or 0) >= min_pct]
     deep_candidates = sorted(deep_candidates, key=lambda x: (-(x.get("pct_chg") or 0), -(x.get("amount") or 0)))[:deep_limit]
 
@@ -451,14 +510,15 @@ def api_smart_hot():
 
     return jsonify({
         "ok": True,
-        "version": "3.0.2-safe-json",
-        "mode": "safe_quick_first",
+        "version": "3.0.3-eastmoney-fallback",
+        "mode": "eastmoney_quick_first",
         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "summary": summary,
         "themes": try_fetch_theme_board(limit=20),
         "results": merged,
-        "errors": errors,
+        "errors": errors + [{"info": x} for x in spot_data.get("errors", [])],
     })
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

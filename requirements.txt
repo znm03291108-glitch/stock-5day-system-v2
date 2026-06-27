@@ -3,3 +3,4 @@ flask-cors==4.0.1
 gunicorn==22.0.0
 pandas>=2.0.0
 akshare>=1.18.0
+requests>=2.31.0
