@@ -7,7 +7,7 @@ import pandas as pd
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder="static", static_url_path="")
+app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
 
@@ -261,7 +261,7 @@ def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
 
 @app.route("/")
 def index():
-    return send_from_directory("static", "index.html")
+    return send_from_directory(".", "index.html")
 
 
 @app.route("/api/health")
