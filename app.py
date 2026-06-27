@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.4.1-no-688",
+        "version": "3.5-fundamental-news",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -108,6 +108,154 @@ def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
     if df is None or df.empty:
         raise ValueError("没有获取到行情数据，可能是代码错误、停牌或 AKShare 数据源暂时不可用")
     return df
+
+
+
+
+POSITIVE_KEYWORDS = ["业绩预增", "扭亏", "中标", "签订合同", "回购", "增持", "并购", "重组", "新产品", "涨价", "政策支持", "订单增长", "人工智能", "机器人", "算力", "芯片", "新能源", "低空经济", "军工"]
+NEGATIVE_KEYWORDS = ["减持", "立案", "问询函", "业绩下滑", "亏损", "退市", "商誉减值", "股东质押", "解禁", "处罚", "诉讼", "风险警示"]
+
+
+def infer_themes(name: str, symbol: str = "") -> List[str]:
+    """轻量级题材推断。没有外部公告源时，用名称关键词做保守判断。"""
+    n = (name or "").lower()
+    themes = []
+    mapping = [
+        ("牧", "农业/养殖"), ("农", "农业/养殖"), ("乳", "消费/食品"), ("食", "消费/食品"),
+        ("芯", "芯片/半导体"), ("半导体", "芯片/半导体"), ("电子", "电子科技"),
+        ("机器人", "机器人"), ("智能", "人工智能"), ("软件", "人工智能"), ("数据", "数据要素"),
+        ("光伏", "新能源"), ("电池", "新能源"), ("锂", "新能源"), ("储能", "新能源"),
+        ("军", "军工"), ("航", "军工/航空"), ("船", "军工/船舶"),
+        ("医", "医药"), ("药", "医药"), ("生物", "医药"),
+        ("汽车", "汽车产业链"), ("车", "汽车产业链"),
+        ("传媒", "传媒娱乐"), ("文化", "传媒娱乐"), ("游戏", "传媒娱乐"),
+        ("金", "金融/有色"), ("铜", "有色金属"), ("铝", "有色金属"), ("矿", "有色金属"),
+    ]
+    for k, v in mapping:
+        if k in n and v not in themes:
+            themes.append(v)
+    if symbol.startswith("30"):
+        themes.append("创业板")
+    elif symbol.startswith("60"):
+        themes.append("主板")
+    return themes[:4] if themes else ["题材待确认"]
+
+
+def build_fundamental_news_profile(
+    symbol: str,
+    name: str,
+    pct_chg: Optional[float],
+    amount: Optional[float],
+    turnover: Optional[float],
+    risk_flags: List[str],
+    category: str,
+) -> Dict[str, Any]:
+    """
+    Railway 免费环境里尽量避免重接口。
+    这里先做轻量版：基于名称、涨幅、成交额、换手率、风险标签生成业绩/利好验证框架。
+    后续可接入公告接口后替换这里。
+    """
+    themes = infer_themes(name, symbol)
+    positive = []
+    negative = []
+
+    text = f"{name} {' '.join(themes)}"
+    for k in POSITIVE_KEYWORDS:
+        if k in text:
+            positive.append(k)
+    for k in NEGATIVE_KEYWORDS:
+        if k in text:
+            negative.append(k)
+
+    # 技术分由涨幅、成交额、换手构成
+    technical_score = 0
+    if pct_chg is not None:
+        if pct_chg >= 5:
+            technical_score += 35
+        if pct_chg >= 8:
+            technical_score += 10
+    if amount is not None:
+        if amount >= 2_000_000_000:
+            technical_score += 25
+        elif amount >= 500_000_000:
+            technical_score += 18
+        elif amount >= 100_000_000:
+            technical_score += 10
+    if turnover is not None:
+        if 3 <= turnover <= 20:
+            technical_score += 25
+        elif 20 < turnover <= 30:
+            technical_score += 12
+        elif turnover > 30:
+            technical_score += 5
+    technical_score = min(100, technical_score)
+
+    # 题材分：只做保守加分，不把它当买点
+    theme_score = 45
+    if themes and themes != ["题材待确认"]:
+        theme_score += 25
+    if any(x in themes for x in ["人工智能", "机器人", "芯片/半导体", "新能源", "军工", "数据要素"]):
+        theme_score += 20
+    theme_score = min(100, theme_score)
+
+    # 业绩分：轻量版默认中性；风险票扣分；名称/题材不代表业绩
+    performance_score = 60
+    if any("ST" in x or "退" in x or "亏损" in x for x in risk_flags):
+        performance_score -= 30
+    if any(x in positive for x in ["业绩预增", "扭亏", "订单增长"]):
+        performance_score += 25
+    if any(x in negative for x in ["业绩下滑", "亏损", "退市"]):
+        performance_score -= 35
+    performance_score = max(0, min(100, performance_score))
+
+    # 风险分越高越危险
+    risk_score = 0
+    for flag in risk_flags:
+        if "ST" in flag or "退" in flag or "688" in flag or "北交所" in flag:
+            risk_score += 35
+        elif "不足" in flag or "过高" in flag or "高波动" in flag:
+            risk_score += 20
+        else:
+            risk_score += 10
+    risk_score = min(100, risk_score)
+
+    good_news_score = min(100, 50 + len(positive) * 12 - len(negative) * 18)
+    composite = int(technical_score * 0.38 + theme_score * 0.22 + performance_score * 0.25 + good_news_score * 0.15 - risk_score * 0.25)
+    composite = max(0, min(100, composite))
+
+    if category == "safe_near" and composite >= 75 and risk_score <= 20:
+        final_level = "优质安全接近买点"
+        final_tag = "quality_safe_near"
+        conclusion = "技术位置较好，风险标签较少，题材/业绩验证为中性偏好。"
+    elif category in ["safe_near", "near"] and risk_score <= 35:
+        final_level = "技术买点待验证"
+        final_tag = "validated_near"
+        conclusion = "技术位置接近买点，但仍需人工核对公告、业绩和题材持续性。"
+    elif risk_score >= 50:
+        final_level = "技术强但风险高"
+        final_tag = "fundamental_risk"
+        conclusion = "涨幅或热度较高，但风险标签较重，不适合放进安全买点池。"
+    else:
+        final_level = "普通观察"
+        final_tag = "normal_watch"
+        conclusion = "可以观察，但基本面和利好支撑不够明确。"
+
+    return {
+        "enabled": True,
+        "themes": themes,
+        "positive_keywords": positive,
+        "negative_keywords": negative,
+        "technical_score": int(technical_score),
+        "theme_score": int(theme_score),
+        "performance_score": int(performance_score),
+        "good_news_score": int(good_news_score),
+        "risk_score": int(risk_score),
+        "composite_score": int(composite),
+        "final_level": final_level,
+        "final_tag": final_tag,
+        "conclusion": conclusion,
+        "data_note": "当前为轻量验证版：题材和利好为关键词/规则识别，年度和季度业绩暂以风险标签中性评分表示，实盘前需核对公告和财报。",
+    }
 
 
 
@@ -307,6 +455,27 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
     if amount and amount >= 1_000_000_000: tags.append("成交额活跃")
     if turnover and turnover >= 8: tags.append("高换手")
     tags.extend(risk_flags)
+    fundamental_profile = build_fundamental_news_profile(
+        symbol=symbol,
+        name=name or symbol,
+        pct_chg=pct_chg,
+        amount=amount,
+        turnover=turnover,
+        risk_flags=risk_flags,
+        category=category,
+    )
+
+    if category == "safe_near" and fundamental_profile.get("final_tag") == "quality_safe_near":
+        category = "quality_safe_near"
+        level = "优质安全接近买点"
+        rank = 0
+        tags.append("业绩/题材验证通过")
+        action = "技术位置较好，风险标签较少，题材/业绩验证中性偏好。仍需人工核对公告后执行。"
+        position = "可加入优先观察池；按交易计划分批，不能一次满仓。"
+        risk = "实盘前必须核对公告、财报和分时走势。"
+        fundamental_profile["final_level"] = "优质安全接近买点"
+        fundamental_profile["final_tag"] = "quality_safe_near"
+
 
     return {
         "symbol": symbol, "name": name or symbol, "data_points": int(len(work)), "rank": rank,
@@ -458,6 +627,7 @@ def parse_symbols(raw: str) -> List[str]:
 def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) -> Dict[str, Any]:
     return {
         "total_input": total_input, "success": len(results), "failed": failed,
+        "quality_safe_near": len([x for x in results if x.get("category") == "quality_safe_near"]),
         "safe_near": len([x for x in results if x.get("category") == "safe_near"]),
         "near": len([x for x in results if x.get("category") == "near"]),
         "focus": len([x for x in results if x.get("category") == "focus"]),
@@ -477,7 +647,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.4.1-no-688", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持过滤688科创板、风险过滤增强、安全接近买点与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.5-fundamental-news", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持业绩与利好验证、风险过滤、安全买点与实盘交易计划"})
 
 
 @app.route("/api/analyze")
@@ -501,7 +671,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.4.1-no-688", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.5-fundamental-news", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
@@ -515,7 +685,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.4.1-no-688", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.5-fundamental-news", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -523,7 +693,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.4.1-no-688", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.5-fundamental-news", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -557,7 +727,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.4.1-no-688", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.5-fundamental-news", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
