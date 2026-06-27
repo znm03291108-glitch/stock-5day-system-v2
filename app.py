@@ -60,7 +60,7 @@ def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
     """使用 AKShare 获取 A 股历史日K。"""
     import akshare as ak
 
-    end_date = datetime.now().strftime("%Y%m%d")
+    start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=180)).strftime("%Y%m%d")
     df = ak.stock_zh_a_hist(
         symbol=symbol,
@@ -215,7 +215,7 @@ def analyze_stock(symbol: str, adjust: str = "") -> Dict[str, Any]:
         position = "不买或轻仓观察。"
         risk = "信号不足，容易买到假突破。"
 
-    name = fetch_name(symbol)
+    name = symbol
 
     return {
         "symbol": symbol,
