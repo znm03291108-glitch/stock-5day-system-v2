@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.6.7-finance-explain",
+        "version": "3.6.7.1-finance-explain-fix",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -648,6 +648,8 @@ def build_trade_plan(close_price, ma5, ma10, pct_chg, distance_ma5_pct, category
 
 
 def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    good_news_score = 0
+    bad_news_score = 0
     symbol = normalize_symbol(symbol)
     df = fetch_hist(symbol, adjust if adjust in ["", "qfq", "hfq"] else "")
     cols = detect_columns(df)
@@ -1024,7 +1026,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.7-finance-explain", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.7.1-finance-explain-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1034,7 +1036,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.6.7-finance-explain",
+            "version": "3.6.7.1-finance-explain-fix",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1063,10 +1065,142 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.7-finance-explain", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.7.1-finance-explain-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 
+
+
+
+
+# ===== V3.6.7.1 compatibility fixes =====
+def fetch_real_data(symbol: str) -> Dict[str, Any]:
+    """
+    兼容旧版本函数名：部分版本使用 fetch_real_data_for_symbol / get_real_data / fetch_finance_and_news。
+    如果不存在，就用财报与公告的轻量组合，保证 /api/finance_explain 和测试财报解释不报错。
+    """
+    symbol = safe_str(symbol)
+    # 优先调用已有旧函数
+    for fn_name in ["fetch_real_data_for_symbol", "get_real_data", "fetch_finance_and_news", "fetch_company_real_data"]:
+        fn = globals().get(fn_name)
+        if callable(fn) and fn_name != "fetch_real_data":
+            try:
+                return fn(symbol)
+            except Exception:
+                pass
+
+    data = {
+        "enabled": True,
+        "data_OK": False,
+        "data_note": "V3.6.7.1 兼容读取：若财报/公告接口失败，会返回轻量解释。",
+        "finance": {
+            "ok": False,
+            "source": "compat",
+            "errors": [],
+            "report_date": None,
+            "profit_yoy": None,
+            "revenue_yoy": None,
+            "gross_margin": None,
+            "roe": None,
+            "report_is_stale": True,
+            "report_sort_status": "未取得财报数据"
+        },
+        "announcements": [],
+        "positive_hits": [],
+        "negative_hits": [],
+        "finance_tags": [],
+        "finance_risk": [],
+        "conclusion": "暂未取得真实财报/公告数据，仅可做技术面参考。",
+    }
+
+    try:
+        # 直接使用 AKShare 读取最新主要财务指标。接口有变化时不会中断主程序。
+        import akshare as ak
+        import pandas as pd
+        indicators = None
+        for api_name in ["stock_financial_analysis_indicator", "stock_financial_abstract"]:
+            try:
+                api = getattr(ak, api_name, None)
+                if callable(api):
+                    if api_name == "stock_financial_analysis_indicator":
+                        indicators = api(symbol=symbol)
+                    else:
+                        indicators = api(symbol=symbol)
+                    if indicators is not None and len(indicators) > 0:
+                        break
+            except Exception as e:
+                data["finance"]["errors"].append(f"{api_name}: {str(e)[:80]}")
+
+        if indicators is not None and len(indicators) > 0:
+            df = indicators.copy()
+            # 尝试找到日期列并倒序
+            date_col = None
+            for c in df.columns:
+                if any(k in str(c) for k in ["日期", "报告期", "截止"]):
+                    date_col = c
+                    break
+            if date_col:
+                df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+                df = df.sort_values(date_col, ascending=False)
+            row = df.iloc[0].to_dict()
+
+            def pick(keys):
+                for k in keys:
+                    for col, val in row.items():
+                        if k in str(col):
+                            try:
+                                if val in ["", "-", "--", None]:
+                                    continue
+                                return float(val)
+                            except Exception:
+                                continue
+                return None
+
+            report_date = None
+            if date_col and not pd.isna(row.get(date_col)):
+                report_date = str(row.get(date_col))[:10]
+            else:
+                for col, val in row.items():
+                    if any(k in str(col) for k in ["日期", "报告期", "截止"]):
+                        report_date = str(val)[:10]
+                        break
+
+            profit_yoy = pick(["净利润同比", "净利润增长率", "净利润增长"])
+            revenue_yoy = pick(["营业收入同比", "营收同比", "主营业务收入增长率", "营业收入增长率"])
+            gross_margin = pick(["销售毛利率", "毛利率"])
+            roe = pick(["净资产收益率", "ROE", "加权净资产收益率"])
+
+            data["finance"].update({
+                "ok": True,
+                "source": "akshare-compat",
+                "report_date": report_date,
+                "profit_yoy": profit_yoy,
+                "revenue_yoy": revenue_yoy,
+                "gross_margin": gross_margin,
+                "roe": roe,
+                "report_is_stale": False if report_date else True,
+                "report_sort_status": "兼容模式按报告期倒序取最新" if report_date else "兼容模式未识别报告期",
+            })
+            data["data_OK"] = True
+
+            if profit_yoy is not None and profit_yoy > 30:
+                data["finance_tags"].append("净利润增长")
+            if revenue_yoy is not None and revenue_yoy < 0:
+                data["finance_risk"].append("营收下滑")
+            if gross_margin is not None and gross_margin > 30:
+                data["finance_tags"].append("毛利率较好")
+
+            if data["finance_tags"]:
+                data["conclusion"] = "真实财报存在一定积极信号，可作为辅助加分项。"
+            if data["finance_risk"]:
+                data["conclusion"] += " 但存在风险项，需核对公告原文。"
+
+    except Exception as e:
+        data["finance"]["errors"].append(str(e)[:120])
+        data["conclusion"] = "财报/公告接口暂时不可用，系统已降级为技术面参考。"
+
+    return data
+# ===== end compatibility fixes =====
 
 
 
@@ -1256,7 +1390,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.6.7-finance-explain",
+            "version": "3.6.7.1-finance-explain-fix",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1264,7 +1398,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.7-finance-explain",
+            "version": "3.6.7.1-finance-explain-fix",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -1376,11 +1510,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.7-finance-explain",
+            "version": "3.6.7.1-finance-explain-fix",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.7-finance-explain", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.6.7.1-finance-explain-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1587,11 +1721,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.7-finance-explain",
+            "version": "3.6.7.1-finance-explain-fix",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.7-finance-explain", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.6.7.1-finance-explain-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1663,7 +1797,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.6.7-finance-explain",
+            "version": "3.6.7.1-finance-explain-fix",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -1672,7 +1806,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.7-finance-explain",
+            "version": "3.6.7.1-finance-explain-fix",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -1693,7 +1827,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.7-finance-explain", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.7.1-finance-explain-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -1701,7 +1835,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.6.7-finance-explain", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.6.7.1-finance-explain-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -1735,7 +1869,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.7-finance-explain", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.7.1-finance-explain-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
