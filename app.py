@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.4-trade-plan",
+        "version": "3.4.1-no-688",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -67,6 +67,12 @@ def is_bj_stock(symbol: str) -> bool:
     # 北交所常见 8、4 开头；本系统默认主做沪深 A 股
     s = normalize_symbol(symbol)
     return s.startswith(("8", "4"))
+
+
+def is_star_market_stock(symbol: str) -> bool:
+    # 科创板 688 开头，默认过滤，避免进入普通5日线强势股池
+    s = normalize_symbol(symbol)
+    return s.startswith("688")
 
 
 def detect_columns(df: pd.DataFrame) -> Dict[str, str]:
@@ -226,6 +232,10 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
         risk_flags.append("ST/*ST风险")
     if is_bj_stock(symbol):
         risk_flags.append("北交所过滤")
+    if is_star_market_stock(symbol):
+        risk_flags.append("688科创板过滤")
+    if is_star_market_stock(symbol):
+        risk_flags.append("688科创板过滤")
     if last_close is not None and last_close < 3:
         risk_flags.append("低价股风险")
     if amount is not None and amount < 100_000_000:
@@ -237,7 +247,7 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
     if distance_ma5_pct is not None and distance_ma5_pct > 10:
         risk_flags.append("严重远离5日线")
 
-    hard_risk = any(x in risk_flags for x in ["ST/*ST风险", "北交所过滤", "成交额不足1亿"])
+    hard_risk = any(x in risk_flags for x in ["ST/*ST风险", "北交所过滤", "688科创板过滤", "成交额不足1亿"])
     soft_risk = any(x in risk_flags for x in ["低价股风险", "换手率过高", "接近20cm涨停/高波动", "严重远离5日线"])
 
     score10 = 0
@@ -321,6 +331,10 @@ def quick_score_from_spot(item: Dict[str, Any], enable_risk_filter: bool = True)
         risk_flags.append("ST/*ST风险")
     if is_bj_stock(symbol):
         risk_flags.append("北交所过滤")
+    if is_star_market_stock(symbol):
+        risk_flags.append("688科创板过滤")
+    if is_star_market_stock(symbol):
+        risk_flags.append("688科创板过滤")
     if item.get("price") is not None and item.get("price") < 3:
         risk_flags.append("低价股风险")
     if amount and amount < 100_000_000:
@@ -330,7 +344,7 @@ def quick_score_from_spot(item: Dict[str, Any], enable_risk_filter: bool = True)
     if pct >= 19:
         risk_flags.append("接近20cm涨停/高波动")
 
-    hard_risk = any(x in risk_flags for x in ["ST/*ST风险", "北交所过滤", "成交额不足1亿"])
+    hard_risk = any(x in risk_flags for x in ["ST/*ST风险", "北交所过滤", "688科创板过滤", "成交额不足1亿"])
 
     score = 0
     score += min(max(pct, 0), 10) * 4
@@ -388,7 +402,7 @@ def fetch_eastmoney_spot(page_size: int = 80, sort_field: str = "f3") -> List[Di
     out = []
     for row in rows:
         code = safe_str(row.get("f12"))
-        if len(code) != 6 or not code.startswith(("00", "30", "60", "68", "8", "4")):
+        if len(code) != 6 or not code.startswith(("00", "30", "60", "8", "4")):
             continue
         out.append({"symbol": code, "name": safe_str(row.get("f14")), "price": safe_float(row.get("f2")), "pct_chg": safe_float(row.get("f3")), "amount": safe_float(row.get("f6")), "turnover": safe_float(row.get("f8")), "secid": market_prefix(code) + code})
     return out
@@ -409,7 +423,7 @@ def get_spot_candidates(limit: int = 60, enable_risk_filter: bool = True, includ
     candidates = list(seen.values())
 
     if enable_risk_filter and not include_risk:
-        candidates = [x for x in candidates if not is_st_stock(x.get("name", "")) and not is_bj_stock(x.get("symbol", "")) and (x.get("amount") or 0) >= 100_000_000]
+        candidates = [x for x in candidates if not is_st_stock(x.get("name", "")) and not is_bj_stock(x.get("symbol", "")) and not is_star_market_stock(x.get("symbol", "")) and (x.get("amount") or 0) >= 100_000_000]
 
     candidates.sort(key=lambda x: (-(x.get("pct_chg") or -999), -(x.get("amount") or 0), -(x.get("turnover") or 0)))
     return {"candidates": candidates[:limit], "source_count": len(candidates), "errors": errors}
@@ -463,7 +477,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.4-trade-plan", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持风险过滤增强、安全接近买点与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.4.1-no-688", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持过滤688科创板、风险过滤增强、安全接近买点与实盘交易计划"})
 
 
 @app.route("/api/analyze")
@@ -487,7 +501,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.4-trade-plan", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.4.1-no-688", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
@@ -501,7 +515,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.4-trade-plan", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.4.1-no-688", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -509,7 +523,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.4-trade-plan", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.4.1-no-688", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -543,7 +557,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.4-trade-plan", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.4.1-no-688", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
