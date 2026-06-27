@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.6.7.1-finance-explain-fix",
+        "version": "3.6.7.2-single-analysis-fix",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -542,10 +542,10 @@ def build_fundamental_news_profile(
 
     if (not real_report_stale) and ("净利润高增长" in finance_tags or "营收增长" in finance_tags or real_positive):
         performance_score += 18
-        good_news_score = min(100, good_news_score + 15)
+        good_news_score = min(100, locals().get("good_news_score", 0) + 15)
     if finance_risk or real_negative:
         performance_score -= 28
-        good_news_score = max(0, good_news_score - 22)
+        good_news_score = max(0, locals().get("good_news_score", 0) - 22)
     if real_report_stale:
         # 过旧财报不扣技术分，只取消基本面加分，并提示人工核对
         performance_score = min(performance_score, 60)
@@ -567,7 +567,7 @@ def build_fundamental_news_profile(
     risk_score = min(100, risk_score)
 
     good_news_score = min(100, 50 + len(positive) * 12 - len(negative) * 18)
-    composite = int(technical_score * 0.38 + theme_score * 0.22 + performance_score * 0.25 + good_news_score * 0.15 - risk_score * 0.25)
+    composite = int(technical_score * 0.38 + theme_score * 0.22 + performance_score * 0.25 + locals().get("good_news_score", 0) * 0.15 - risk_score * 0.25)
     composite = max(0, min(100, composite))
 
     if category == "safe_near" and composite >= 75 and risk_score <= 20:
@@ -595,7 +595,7 @@ def build_fundamental_news_profile(
         "technical_score": int(technical_score),
         "theme_score": int(theme_score),
         "performance_score": int(performance_score),
-        "good_news_score": int(good_news_score),
+        "good_news_score": int(locals().get("good_news_score", 0)),
         "risk_score": int(risk_score),
         "composite_score": int(composite),
         "final_level": final_level,
@@ -1026,7 +1026,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.7.1-finance-explain-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.7.2-single-analysis-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1036,7 +1036,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.6.7.1-finance-explain-fix",
+            "version": "3.6.7.2-single-analysis-fix",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1046,6 +1046,10 @@ def api_real_profile():
 
 @app.route("/api/analyze")
 def api_analyze():
+    good_news_score = 0
+    bad_news_score = 0
+    finance_score = 0
+    news_score = 0
     try:
         return jsonify(analyze_stock(request.args.get("symbol", ""), request.args.get("adjust", "")))
     except Exception as e:
@@ -1065,12 +1069,22 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.7.1-finance-explain-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.7.2-single-analysis-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 
 
 
+
+
+
+def safe_int_value(v, default=0):
+    try:
+        if v is None:
+            return default
+        return int(float(v))
+    except Exception:
+        return default
 
 
 # ===== V3.6.7.1 compatibility fixes =====
@@ -1390,7 +1404,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.6.7.1-finance-explain-fix",
+            "version": "3.6.7.2-single-analysis-fix",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1398,7 +1412,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.7.1-finance-explain-fix",
+            "version": "3.6.7.2-single-analysis-fix",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -1510,11 +1524,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.7.1-finance-explain-fix",
+            "version": "3.6.7.2-single-analysis-fix",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.7.1-finance-explain-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.6.7.2-single-analysis-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1721,11 +1735,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.7.1-finance-explain-fix",
+            "version": "3.6.7.2-single-analysis-fix",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.7.1-finance-explain-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.6.7.2-single-analysis-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1777,6 +1791,10 @@ def fetch_theme_stocks_by_board(board_code: str, limit: int = 50) -> List[Dict[s
 
 @app.route("/api/theme_stocks", methods=["POST", "GET"])
 def api_theme_stocks():
+    good_news_score = 0
+    bad_news_score = 0
+    finance_score = 0
+    news_score = 0
     payload = request.get_json(silent=True) if request.method == "POST" else request.args
     payload = payload or {}
     board_code = safe_str(payload.get("board_code", ""))
@@ -1797,7 +1815,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.6.7.1-finance-explain-fix",
+            "version": "3.6.7.2-single-analysis-fix",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -1806,7 +1824,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.7.1-finance-explain-fix",
+            "version": "3.6.7.2-single-analysis-fix",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -1818,6 +1836,10 @@ def api_theme_stocks():
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
 def api_smart_hot():
+    good_news_score = 0
+    bad_news_score = 0
+    finance_score = 0
+    news_score = 0
     payload = request.get_json(silent=True) if request.method == "POST" else request.args
     payload = payload or {}
     quick_limit = max(20, min(int(payload.get("quick_limit", 35)), 60))
@@ -1827,7 +1849,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.7.1-finance-explain-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.7.2-single-analysis-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -1835,7 +1857,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.6.7.1-finance-explain-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.6.7.2-single-analysis-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -1869,7 +1891,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.7.1-finance-explain-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.7.2-single-analysis-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
