@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>5日线强势股交易纪律系统 V3.6.8</title>
+<title>5日线强势股交易纪律系统 V3.6.9</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Arial,sans-serif;background:#0f172a;color:#e5e7eb}.container{max-width:1160px;margin:0 auto;padding:16px}.header{background:linear-gradient(135deg,#172554,#111827);border:1px solid rgba(148,163,184,.25);border-radius:18px;padding:20px;margin-bottom:16px}h1{margin:0 0 8px;font-size:24px;color:#fff}.warn{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.35);color:#fde68a;font-size:13px;line-height:1.6}.card{background:#111827;border:1px solid rgba(148,163,184,.22);border-radius:16px;padding:16px;margin-bottom:16px}label{display:block;margin:12px 0 6px;color:#cbd5e1;font-size:14px}input,select,textarea{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(148,163,184,.28);background:#020617;color:#f8fafc;font-size:15px;outline:none}textarea{min-height:132px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}.btns,.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}button{border:0;border-radius:12px;padding:11px 13px;color:#fff;background:#2563eb;font-weight:800;cursor:pointer;font-size:14px}.green{background:#16a34a}.gray{background:#475569}.red{background:#dc2626}.purple{background:#7c3aed}.orange{background:#ea580c}.result{margin-top:14px;padding:14px;border-radius:14px;background:#020617;border:1px solid rgba(148,163,184,.24);line-height:1.75;font-size:14px;white-space:pre-wrap;overflow:auto}.score{font-size:42px;font-weight:900;margin:6px 0}.good{color:#4ade80}.mid{color:#facc15}.bad{color:#fb7185}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;margin:2px 4px 6px 0;background:rgba(59,130,246,.15);color:#bfdbfe;border:1px solid rgba(59,130,246,.28)}.riskpill{background:rgba(248,113,113,.13);color:#fecaca;border-color:rgba(248,113,113,.3)}.techpill{background:rgba(168,85,247,.16);color:#ddd6fe;border-color:rgba(168,85,247,.35)}.safepill{background:rgba(34,197,94,.15);color:#bbf7d0;border-color:rgba(34,197,94,.35)}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}}.stat{background:#020617;border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:12px}.stat b{display:block;font-size:22px;margin-bottom:4px}.stat span{color:#94a3b8;font-size:12px}.tabs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}.tab,.filterbar button{background:#1e293b;color:#cbd5e1}.tab.active,.filterbar button.active{background:#2563eb;color:#fff}.hide{display:none}.footer{text-align:center;color:#64748b;padding:20px 0 8px;font-size:12px}.mobile-cards{display:grid;grid-template-columns:1fr;gap:12px}.stock-card{background:#020617;border:1px solid rgba(148,163,184,.24);border-radius:16px;padding:14px}.stock-card.quality_safe_near{border-color:rgba(34,197,94,1);box-shadow:0 0 0 2px rgba(34,197,94,.35)}.stock-card.safe_near{border-color:rgba(34,197,94,.95);box-shadow:0 0 0 1px rgba(34,197,94,.25)}.stock-card.near{border-color:rgba(74,222,128,.75)}.stock-card.focus{border-color:rgba(56,189,248,.65)}.stock-card.far,.stock-card.watch{border-color:rgba(250,204,21,.5)}.stock-card.risk,.stock-card.riskfilter{border-color:rgba(251,113,133,.65);opacity:.82}.stock-card.ignore{opacity:.72}.stock-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.stock-title{font-size:22px;font-weight:900}.stock-name{font-size:13px;color:#94a3b8;margin-top:2px}.rank{font-size:13px;color:#94a3b8}.level{font-weight:800;padding:5px 8px;border-radius:999px;font-size:12px;background:#1e293b}.quality_safe_near .level{background:rgba(34,197,94,.35);color:#dcfce7}.safe_near .level{background:rgba(34,197,94,.28);color:#dcfce7}.near .level{background:rgba(34,197,94,.2);color:#bbf7d0}.focus .level{background:rgba(56,189,248,.18);color:#bae6fd}.far .level,.watch .level{background:rgba(250,204,21,.15);color:#fef08a}.risk .level,.riskfilter .level{background:rgba(248,113,113,.15);color:#fecaca}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.metric{background:rgba(15,23,42,.75);border:1px solid rgba(148,163,184,.12);border-radius:12px;padding:10px}.metric span{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px}.metric b{font-size:18px}.advice-box{border-top:1px solid rgba(148,163,184,.18);padding-top:10px;margin-top:10px;line-height:1.65}.card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.card-actions button{padding:8px 10px;font-size:12px}.small{font-size:12px;color:#94a3b8;line-height:1.6}.theme-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:700px){.theme-list{grid-template-columns:1fr}}.theme-item{background:#020617;border:1px solid rgba(148,163,184,.18);border-radius:12px;padding:10px;cursor:pointer}.theme-item:active{transform:scale(.98)}.theme-item.selected{border-color:rgba(34,197,94,.8);box-shadow:0 0 0 1px rgba(34,197,94,.25)}.progress{height:10px;background:#020617;border-radius:999px;overflow:hidden;border:1px solid rgba(148,163,184,.2);margin-top:12px}.bar{height:100%;width:0%;background:#2563eb;transition:.3s}.running{outline:2px solid rgba(34,197,94,.45)}.switchrow{display:flex;gap:8px;align-items:center;margin-top:10px;color:#cbd5e1;font-size:13px}.switchrow input{width:auto}.planbox{border-top:1px solid rgba(34,197,94,.28);margin-top:10px;padding-top:10px;line-height:1.7;color:#dcfce7}.planbox b{color:#bbf7d0}
 
@@ -18,10 +18,54 @@
 .good-box{border-color:rgba(34,197,94,.45)}
 .bad-box{border-color:rgba(248,113,113,.45)}
 
+
+/* ===== V3.6.9 mobile UI optimization ===== */
+.compact-card{padding:14px!important}
+.stock-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.stock-code{font-size:34px;font-weight:900;line-height:1.05}
+.stock-name{color:#94a3b8;margin-top:4px}
+.rank-line{color:#94a3b8;font-size:14px}
+.badge-top{font-size:13px;padding:6px 10px;border-radius:999px;background:rgba(250,204,21,.12);color:#fde68a;border:1px solid rgba(250,204,21,.25);white-space:nowrap}
+.mobile-score{font-size:42px;font-weight:900;color:#facc15;margin:12px 0}
+.plan-first{border:1px solid rgba(34,197,94,.35);background:rgba(34,197,94,.06);border-radius:14px;padding:12px;margin:12px 0}
+.plan-first b{color:#86efac}
+.mobile-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.mobile-actions button{padding:10px 12px;border-radius:12px;font-size:14px}
+.finance-toggle{margin-top:10px}
+.finance-toggle summary{cursor:pointer;padding:10px 12px;border-radius:12px;background:#0f172a;border:1px solid rgba(148,163,184,.2);font-weight:700}
+.finance-toggle[open] summary{border-color:rgba(34,197,94,.35)}
+.review-copy-box{margin-top:12px;padding:12px;border-radius:14px;background:#020617;border:1px solid rgba(59,130,246,.35);white-space:pre-wrap;font-size:14px;line-height:1.6}
+.quick-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.quick-summary div{background:#0f172a;border:1px solid rgba(148,163,184,.15);border-radius:12px;padding:10px}
+.quick-summary span{display:block;color:#94a3b8;font-size:12px;margin-bottom:4px}
+.quick-summary b{font-size:18px}
+.watch-empty{padding:18px;border-radius:14px;background:#020617;border:1px dashed rgba(148,163,184,.35);color:#94a3b8}
+.footer-risk{margin:18px 0 0;padding:12px;border-radius:14px;background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.25);font-size:13px;color:#fde68a;line-height:1.6}
+@media(max-width:520px){
+  body{font-size:16px}
+  .container{padding:12px}
+  .hero{padding:20px 18px}
+  .hero h1{font-size:30px;line-height:1.15}
+  .card{padding:16px;margin:14px 0;border-radius:18px}
+  .card h2{font-size:28px;line-height:1.2}
+  input,select,textarea{font-size:16px;padding:14px}
+  button{font-size:16px;padding:12px 14px}
+  .tabs{gap:8px}
+  .tabs button{padding:12px 14px}
+  .grid4{grid-template-columns:1fr 1fr!important;gap:10px}
+  .stat{padding:12px}
+  .stat b{font-size:24px}
+  .mini-grid{grid-template-columns:1fr 1fr!important}
+  .stock-code{font-size:32px}
+  .mobile-score{font-size:48px}
+  .result{font-size:15px;line-height:1.65}
+}
+
 </style>
 </head>
 <body><div class="container">
-<div class="header"><h1>5日线强势股交易纪律系统 V3.6.8</h1><p>实盘交易计划版：在风险过滤基础上，自动生成观察价、半仓价、止损价、2:50检查价、回踩接回价。</p><div class="warn">风险提示：本系统是交易纪律辅助工具，不是荐股软件，不保证盈利。财报中文解释只用于辅助理解，不代表投资建议；实盘前必须人工核对原始公告、行情和财报。</div></div>
+<div class="header"><h1>5日线强势股交易纪律系统 V3.6.9</h1><p>实盘交易计划版：在风险过滤基础上，自动生成观察价、半仓价、止损价、2:50检查价、回踩接回价。</p><div class="warn">风险提示：本系统是交易纪律辅助工具，不是荐股软件，不保证盈利。财报中文解释只用于辅助理解，不代表投资建议；实盘前必须人工核对原始公告、行情和财报。</div></div>
+<div class="footer-risk"><b>手机使用建议：</b>先看“今日智能筛选”，再点题材深度分析；财报默认折叠，缺失时不参与评分；实盘重点看5日线和尾盘纪律。</div>
 <div class="tabs"><button id="tabSmart" class="tab active" onclick="showTab('smart')">今日智能筛选</button><button id="tabSingle" class="tab" onclick="showTab('single')">单股分析</button><button id="tabBatch" class="tab" onclick="showTab('batch')">批量扫描</button><button id="tabRules" class="tab" onclick="showTab('rules')">交易规则</button></div>
 
 <div id="smartPanel">
@@ -58,7 +102,7 @@
 第四：下午2:50跌破5日线减一半仓。
 第五：跌破5日线连续三天没有重新站上，果断卖掉。
 
-V3.6.8 风险过滤：
+V3.6.9 风险过滤：
 1. ST / *ST 默认过滤。
 2. 北交所默认过滤。
 3. 688开头科创板默认过滤。
@@ -67,7 +111,7 @@ V3.6.8 风险过滤：
 6. 低价股标记风险。
 7. “安全接近买点”要求：站上5日线、距离5日线0~3%、成交额大于2亿、换手率3%~20%、无主要风险标签。
 
-V3.6.8 实盘交易计划：
+V3.6.9 实盘交易计划：
 1. 自动生成观察价：5日线附近。
 2. 自动生成半仓参考价：5日线附近小幅站稳。
 3. 自动生成回踩接回价：回踩5日线不破后重新拉起。
@@ -75,14 +119,14 @@ V3.6.8 实盘交易计划：
 5. 自动生成2:50检查价：尾盘跌破5日线先减半。
 6. 自动生成清仓条件：连续3天站不回5日线清仓。</div></div></div>
 
-<div class="card"><h2>观察池</h2><div id="watchCards" class="mobile-cards"><div class="small">暂无观察股票。</div></div></div>
+<div class="card"><h2>观察池</h2><div id="watchCards" class="mobile-cards"><div class="small"><div class='watch-empty'>暂无观察股票。点击股票卡片里的“观察池”，可把重点票保存到这里。</div></div></div></div>
 <div class="card"><h2>数据管理</h2><div class="btns"><button class="gray" onclick="health()">检测后端</button><button class="gray" onclick="testTradingStatus()">测试交易状态</button><button class="gray" onclick="testMarket()">测试大盘情绪</button><button class="gray" onclick="testRealData()">测试财报解释</button><button class="red" onclick="clearAll()">清空观察池</button></div><div id="healthResult" class="result">点击检测后端。</div></div>
-<div class="footer">5日线强势股交易纪律系统 V3.6.8 · 实盘交易计划版</div></div>
+<div class="footer">5日线强势股交易纪律系统 V3.6.9 · 实盘交易计划版</div></div>
 
 <script>
 let lastAnalysis=null,lastBatchResults=[],lastHotResults=[],allHotResultsBackup=[],hotFilter="all",deepOffset=0,currentTheme=null;
 let autoRunning=false,autoTimer=null,autoRounds=0;
-const STORE="stock5_v368_watch";
+const STORE="stock5_v369_watch";
 function showTab(n){["smart","single","batch","rules"].forEach(x=>document.getElementById(x+"Panel").classList.toggle("hide",x!==n));["Smart","Single","Batch","Rules"].forEach(x=>document.getElementById("tab"+x).classList.remove("active"));document.getElementById("tab"+(n==="smart"?"Smart":n==="single"?"Single":n==="batch"?"Batch":"Rules")).classList.add("active")}
 function baseFrom(id){const v=document.getElementById(id).value.trim();return v?v.replace(/\/$/,""):window.location.origin}
 function apiBase(){return baseFrom("apiBase")}function batchApiBase(){return baseFrom("batchApiBase")}function smartApiBase(){return baseFrom("smartApiBase")}
@@ -149,7 +193,8 @@ function stopAutoDeep(show=true){
 function mergeDeepResults(results){results.forEach(r=>{const idx=lastHotResults.findIndex(x=>x.symbol===r.symbol);if(idx>=0){lastHotResults[idx]=r}else{lastHotResults.push(r)}});lastHotResults.sort((a,b)=>(a.rank||9)-(b.rank||9) || (b.smart_score||0)-(a.smart_score||0) || ((b.quote&&b.quote.pct_chg)||0)-((a.quote&&a.quote.pct_chg)||0))}
 function resetDeep(){stopAutoDeep(false);deepOffset=0;updateDeepBar();smartProgress.textContent="深度分析进度已重置。"}
 function updateDeepBar(){const total=getDeepSymbols().length;const pct=total?Math.min(100, Math.round(deepOffset/total*100)):0;deepBar.style.width=pct+"%"}
-function renderHot(d){updateStatsFromList();renderThemes(d.themes||[]);renderHotCards();updateDeepBar()}
+function renderHot(d){
+  window.currentStocks=(d.results||d.stocks||d.data||[]);updateStatsFromList();renderThemes(d.themes||[]);renderHotCards();updateDeepBar()}
 function updateStatsFromList(){const safe=lastHotResults.filter(x=>["quality_safe_near","safe_near"].includes(x.category)).length,near=lastHotResults.filter(x=>x.category==="near").length,focus=lastHotResults.filter(x=>x.category==="focus").length,risk=lastHotResults.filter(x=>x.category==="riskfilter").length,emotion=lastHotResults.filter(x=>(((x.fundamental_profile||{}).technical_first||{}).tag==="emotion_short_term")).length,far=lastHotResults.filter(x=>x.category==="far").length,quick=lastHotResults.filter(x=>x.quick_only).length;hSafe.textContent=safe;hNear.textContent=near;hFocus.textContent=focus;if(typeof hEmotion!=="undefined")hEmotion.textContent=emotion;hRisk.textContent=risk;hotSummary.textContent=`当前结果：${lastHotResults.length}
 安全接近买点：${safe}
 接近买点：${near}
@@ -165,30 +210,77 @@ function updateStatsFromList(){const safe=lastHotResults.filter(x=>["quality_saf
 
 
 
+
+function compactMoney(v){return v??"-"}
+function stockReviewText(x){
+  const code=x.symbol||x.code||"-";
+  const name=x.name||"";
+  const score=x.score??x.smart_score??"-";
+  const pct=x.pct_chg??x.change_pct??"-";
+  const close=x.close??x.price??"-";
+  const ma5=x.ma5??"-";
+  const dist=x.distance_ma5_pct??x.distance_to_ma5??"-";
+  const plan=x.trading_plan_text||x.plan_text||x.trading_plan||"按5日线纪律观察，尾盘确认是否跌破5日线。";
+  const conclusion=x.conclusion||x.system_conclusion||x.advice||"仅作复盘观察，不构成投资建议。";
+  return `【5日线复盘观察】
+股票：${code} ${name}
+评分：${score}
+涨幅：${pct}%
+收盘/MA5：${close} / ${ma5}
+距5日线：${dist}%
+结论：${conclusion}
+计划：${plan}
+风险提示：仅为复盘和交易纪律辅助，不构成投资建议。`;
+}
+async function copyStockReview(i){
+  const x=(window.currentStocks||[])[i];
+  if(!x){return alert("未找到股票数据")}
+  const text=stockReviewText(x);
+  try{
+    await navigator.clipboard.writeText(text);
+    alert("复盘文案已复制");
+  }catch(e){
+    prompt("复制失败，请手动复制：", text);
+  }
+}
+function renderReviewCopyBox(){
+  const arr=window.currentStocks||[];
+  if(!arr.length){return ""}
+  const top=arr.slice(0,3).map((x,i)=>`${i+1}. ${(x.symbol||x.code||"-")} ${x.name||""}：${x.score??x.smart_score??"-"}分，${x.conclusion||x.advice||"观察"}`).join("\n");
+  const text=`今日复盘重点：\n${top}\n\n纪律：优先看5日线，不追远离5日线；尾盘确认是否跌破5日线；财报缺失不参与评分。`;
+  return `<div class="card"><h2>今日复盘文案</h2><div class="review-copy-box" id="reviewText">${text}</div><button onclick="navigator.clipboard.writeText(document.getElementById('reviewText').innerText).then(()=>alert('今日复盘文案已复制'))">一键复制今日复盘文案</button></div>`;
+}
+
 function renderFinanceExplain(ex){
-  if(!ex){return `<div class="small">暂无财报解释，本次按技术面参考。</div>`}
+  if(!ex){return `<details class="finance-toggle"><summary>财报解释：暂无，按技术面参考</summary><div class="finance-card">暂无财报解释，本次按技术面参考。</div></details>`}
   const m=ex.metrics||{};
   const pos=(ex.positives||[]).map(x=>`<li>${x}</li>`).join("");
   const risk=(ex.risks||[]).map(x=>`<li>${x}</li>`).join("");
   const neu=(ex.neutral||[]).map(x=>`<li>${x}</li>`).join("");
   const levelClass=ex.level==="积极"||ex.level==="偏积极"?"good":(ex.level==="谨慎"?"bad":"warn");
-  return `<div class="finance-card">
-    <h3>财报中文解释</h3>
-    <div class="score-line"><b class="${levelClass}">${ex.level||"-"}</b> <span>${ex.score==null?"不参与评分":ex.score+"分"}</span></div>
-    <p><b>综合判断：</b>${ex.conclusion||"-"}</p>${ex.data_available===false?`<div class="explain-box"><b>仅技术面模式：</b>财报缺失不会降低股票评分，请结合5日线、大盘情绪和题材持续性判断。</div>`:""}
-    <div class="mini-grid">
-      <div><span>报告期</span><b>${ex.report_date||"暂无"}</b></div>
-      <div><span>净利润同比</span><b>${m.profit_yoy||"暂无"}</b></div>
-      <div><span>营收同比</span><b>${m.revenue_yoy||"暂无"}</b></div>
-      <div><span>毛利率</span><b>${m.gross_margin||"暂无"}</b></div>
-      <div><span>ROE</span><b>${m.roe||"暂无"}</b></div>
-      <div><span>数据状态</span><b>${ex.data_available===false?"未取得":(ex.report_is_stale?"过旧":"较新")}</b></div>
+  const scoreText=ex.score==null?"不参与评分":ex.score+"分";
+  const title=`财报解释：${ex.level||"暂无"} · ${scoreText}`;
+  return `<details class="finance-toggle">
+    <summary>${title}</summary>
+    <div class="finance-card">
+      <h3>财报中文解释</h3>
+      <div class="score-line"><b class="${levelClass}">${ex.level||"-"}</b> <span>${scoreText}</span></div>
+      <p><b>综合判断：</b>${ex.conclusion||"-"}</p>
+      ${ex.data_available===false?`<div class="explain-box"><b>仅技术面模式：</b>财报缺失不会降低股票评分，请结合5日线、大盘情绪和题材持续性判断。</div>`:""}
+      <div class="mini-grid">
+        <div><span>报告期</span><b>${ex.report_date||"暂无"}</b></div>
+        <div><span>净利润同比</span><b>${m.profit_yoy||"暂无"}</b></div>
+        <div><span>营收同比</span><b>${m.revenue_yoy||"暂无"}</b></div>
+        <div><span>毛利率</span><b>${m.gross_margin||"暂无"}</b></div>
+        <div><span>ROE</span><b>${m.roe||"暂无"}</b></div>
+        <div><span>数据状态</span><b>${ex.data_available===false?"未取得":(ex.report_is_stale?"过旧":"较新")}</b></div>
+      </div>
+      ${pos?`<div class="explain-box good-box"><b>积极点：</b><ul>${pos}</ul></div>`:""}
+      ${risk?`<div class="explain-box bad-box"><b>风险点：</b><ul>${risk}</ul></div>`:""}
+      ${neu?`<div class="explain-box"><b>中性信息：</b><ul>${neu}</ul></div>`:""}
+      <div class="small">来源：${ex.source||"-"}；${ex.report_sort_status||""}</div>
     </div>
-    ${pos?`<div class="explain-box good-box"><b>积极点：</b><ul>${pos}</ul></div>`:""}
-    ${risk?`<div class="explain-box bad-box"><b>风险点：</b><ul>${risk}</ul></div>`:""}
-    ${neu?`<div class="explain-box"><b>中性信息：</b><ul>${neu}</ul></div>`:""}
-    <div class="small">来源：${ex.source||"-"}；${ex.report_sort_status||""}</div>
-  </div>`;
+  </details>`;
 }
 function financeExplainText(ex){
   if(!ex){return ""}
@@ -437,7 +529,7 @@ function copyCode(s){navigator.clipboard&&navigator.clipboard.writeText(s);alert
 function addToWatchObj(sym){const x=findObj(sym);if(x){addToWatch(x);alert("已加入观察池")}}
 function addToWatch(d){const item={date:today(),symbol:d.symbol,name:d.name,close:d.quote.close,pct_chg:d.quote.pct_chg,ma5:d.analysis.ma5,distance_ma5_pct:d.analysis.distance_ma5_pct,score:d.smart_score||d.score,category:d.category,status:"等回踩",advice:d.advice.level+"："+d.advice.action};const data=load();data.unshift(item);save(data);renderWatch()}
 function saveWatch(){if(!lastAnalysis){alert("请先分析");return}addToWatch(lastAnalysis);alert("已保存")}
-function renderWatch(){const data=load();watchCards.innerHTML=data.length?data.map(x=>`<div class="stock-card ${x.category||''}"><div class="stock-head"><div><div class="rank">${x.date}</div><div class="stock-title">${x.symbol}</div><div class="stock-name">${x.name||""}</div></div><div class="level">${x.score}分</div></div><div class="metrics"><div class="metric"><span>涨幅</span><b class="${cls(x.pct_chg)}">${fmt(x.pct_chg)}%</b></div><div class="metric"><span>收盘</span><b>${fmt(x.close)}</b></div><div class="metric"><span>MA5</span><b>${fmt(x.ma5)}</b></div><div class="metric"><span>距5日线</span><b class="${cls(x.distance_ma5_pct)}">${fmt(x.distance_ma5_pct)}%</b></div></div><div class="advice-box">${x.advice}</div></div>`).join(""):`<div class="small">暂无观察股票。</div>`}
+function renderWatch(){const data=load();watchCards.innerHTML=data.length?data.map(x=>`<div class="stock-card ${x.category||''}"><div class="stock-head"><div><div class="rank">${x.date}</div><div class="stock-title">${x.symbol}</div><div class="stock-name">${x.name||""}</div></div><div class="level">${x.score}分</div></div><div class="metrics"><div class="metric"><span>涨幅</span><b class="${cls(x.pct_chg)}">${fmt(x.pct_chg)}%</b></div><div class="metric"><span>收盘</span><b>${fmt(x.close)}</b></div><div class="metric"><span>MA5</span><b>${fmt(x.ma5)}</b></div><div class="metric"><span>距5日线</span><b class="${cls(x.distance_ma5_pct)}">${fmt(x.distance_ma5_pct)}%</b></div></div><div class="advice-box">${x.advice}</div></div>`).join(""):`<div class="small"><div class='watch-empty'>暂无观察股票。点击股票卡片里的“观察池”，可把重点票保存到这里。</div></div>`}
 
 async function testRealData(){
   healthResult.textContent="正在读取真实财报/公告数据...";
@@ -455,4 +547,5 @@ async function testRealData(){
 function clearResult(){lastAnalysis=null;mainResult.textContent="等待输入股票代码..."}
 function clearAll(){if(confirm("确定清空观察池吗？")){localStorage.removeItem(STORE);renderWatch()}}
 renderWatch();
-</script></body></html>
+</script><div class="footer-risk">风险提示：本系统是复盘和交易纪律辅助工具，不是荐股软件，不承诺收益。所有行情、财报、题材数据仅供参考，实盘前必须人工核对。</div>
+</body></html>
