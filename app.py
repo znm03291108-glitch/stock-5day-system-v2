@@ -20,8 +20,8 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.1-batch-deep",
-        "hint": "后端异常已被捕获。建议降低分批深度分析数量，或先用单股分析。",
+        "version": "3.2-auto-batch",
+        "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
 
@@ -213,31 +213,10 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
     if turnover and turnover >= 8: tags.append("高换手")
 
     return {
-        "symbol": symbol,
-        "name": name or symbol,
-        "data_points": int(len(work)),
-        "rank": rank,
-        "category": category,
-        "score": int(score10),
-        "smart_score": int(smart_score),
-        "tags": tags,
-        "quote": {
-            "date": str(last[cols["date"]].date()),
-            "open": last_open,
-            "close": last_close,
-            "volume": last_volume,
-            "amount": amount,
-            "turnover": turnover,
-            "pct_chg": pct_chg,
-        },
-        "analysis": {
-            "ma5": ma5,
-            "ma10": ma10,
-            "ma20": ma20,
-            "vol_ma5": vol_ma5,
-            "distance_ma5_pct": distance_ma5_pct,
-            "below_ma5_days": below_days,
-        },
+        "symbol": symbol, "name": name or symbol, "data_points": int(len(work)), "rank": rank,
+        "category": category, "score": int(score10), "smart_score": int(smart_score), "tags": tags,
+        "quote": {"date": str(last[cols["date"]].date()), "open": last_open, "close": last_close, "volume": last_volume, "amount": amount, "turnover": turnover, "pct_chg": pct_chg},
+        "analysis": {"ma5": ma5, "ma10": ma10, "ma20": ma20, "vol_ma5": vol_ma5, "distance_ma5_pct": distance_ma5_pct, "below_ma5_days": below_days},
         "advice": {"level": level, "action": action, "position": position, "risk": risk},
     }
 
@@ -248,98 +227,48 @@ def quick_score_from_spot(item: Dict[str, Any]) -> Dict[str, Any]:
     turnover = item.get("turnover") or 0
     score = 0
     score += min(max(pct, 0), 10) * 4
-    if amount >= 5_000_000_000:
-        score += 30
-    elif amount >= 1_000_000_000:
-        score += 22
-    elif amount >= 300_000_000:
-        score += 12
-    if turnover >= 15:
-        score += 25
-    elif turnover >= 8:
-        score += 16
-    elif turnover >= 3:
-        score += 8
+    if amount >= 5_000_000_000: score += 30
+    elif amount >= 1_000_000_000: score += 22
+    elif amount >= 300_000_000: score += 12
+    if turnover >= 15: score += 25
+    elif turnover >= 8: score += 16
+    elif turnover >= 3: score += 8
     score = int(min(score, 100))
     category = "watch" if pct >= 5 else "ignore"
     level = "热门候选" if pct >= 5 else "只看热度"
     return {
-        "symbol": item["symbol"],
-        "name": item.get("name") or item["symbol"],
-        "category": category,
-        "rank": 3 if category == "watch" else 6,
-        "score": 0,
-        "smart_score": score,
-        "tags": [
-            "热门候选" if pct >= 5 else "涨幅不足5%",
-            "成交额活跃" if amount >= 1_000_000_000 else "成交额一般",
-            "高换手" if turnover >= 8 else "换手一般",
-        ],
-        "quote": {
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "open": None,
-            "close": item.get("price"),
-            "volume": None,
-            "amount": amount,
-            "turnover": turnover,
-            "pct_chg": pct,
-        },
+        "symbol": item["symbol"], "name": item.get("name") or item["symbol"], "category": category,
+        "rank": 3 if category == "watch" else 6, "score": 0, "smart_score": score,
+        "tags": ["热门候选" if pct >= 5 else "涨幅不足5%", "成交额活跃" if amount >= 1_000_000_000 else "成交额一般", "高换手" if turnover >= 8 else "换手一般"],
+        "quote": {"date": datetime.now().strftime("%Y-%m-%d"), "open": None, "close": item.get("price"), "volume": None, "amount": amount, "turnover": turnover, "pct_chg": pct},
         "analysis": {"ma5": None, "ma10": None, "ma20": None, "vol_ma5": None, "distance_ma5_pct": None, "below_ma5_days": None},
-        "advice": {
-            "level": level,
-            "action": "快速筛选结果，只说明热度，不代表买点。可点分批深度分析确认5日线。",
-            "position": "先观察，不直接追。",
-            "risk": "快速候选没有做5日线深度分析，不能直接当买入信号。",
-        },
+        "advice": {"level": level, "action": "快速筛选结果，只说明热度，不代表买点。可自动连续分批分析确认5日线。", "position": "先观察，不直接追。", "risk": "快速候选没有做5日线深度分析，不能直接当买入信号。"},
         "quick_only": True,
     }
 
 
 def market_prefix(code: str) -> str:
-    if code.startswith(("60", "68")):
-        return "1."
-    return "0."
+    return "1." if code.startswith(("60", "68")) else "0."
 
 
 def fetch_eastmoney_spot(page_size: int = 80, sort_field: str = "f3") -> List[Dict[str, Any]]:
     url = "https://push2.eastmoney.com/api/qt/clist/get"
-    params = {
-        "pn": "1",
-        "pz": str(page_size),
-        "po": "1",
-        "np": "1",
-        "fltt": "2",
-        "invt": "2",
-        "fid": sort_field,
-        "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",
-        "fields": "f12,f14,f2,f3,f6,f8",
-        "_": str(int(datetime.now().timestamp() * 1000)),
-    }
+    params = {"pn": "1", "pz": str(page_size), "po": "1", "np": "1", "fltt": "2", "invt": "2", "fid": sort_field, "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23", "fields": "f12,f14,f2,f3,f6,f8", "_": str(int(datetime.now().timestamp() * 1000))}
     headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"}
     r = requests.get(url, params=params, headers=headers, timeout=12)
     r.raise_for_status()
-    data = r.json()
-    rows = (((data or {}).get("data") or {}).get("diff") or [])
+    rows = (((r.json() or {}).get("data") or {}).get("diff") or [])
     out = []
     for row in rows:
         code = safe_str(row.get("f12"))
         if len(code) != 6 or not code.startswith(("00", "30", "60", "68")):
             continue
-        out.append({
-            "symbol": code,
-            "name": safe_str(row.get("f14")),
-            "price": safe_float(row.get("f2")),
-            "pct_chg": safe_float(row.get("f3")),
-            "amount": safe_float(row.get("f6")),
-            "turnover": safe_float(row.get("f8")),
-            "secid": market_prefix(code) + code,
-        })
+        out.append({"symbol": code, "name": safe_str(row.get("f14")), "price": safe_float(row.get("f2")), "pct_chg": safe_float(row.get("f3")), "amount": safe_float(row.get("f6")), "turnover": safe_float(row.get("f8")), "secid": market_prefix(code) + code})
     return out
 
 
 def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
-    all_rows: List[Dict[str, Any]] = []
-    errors = []
+    all_rows, errors = [], []
     for sort_field in ["f3", "f6", "f8"]:
         try:
             all_rows.extend(fetch_eastmoney_spot(page_size=limit, sort_field=sort_field))
@@ -358,11 +287,7 @@ def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
 def try_fetch_theme_board(limit: int = 20) -> List[Dict[str, Any]]:
     try:
         url = "https://push2.eastmoney.com/api/qt/clist/get"
-        params = {
-            "pn": "1", "pz": str(limit), "po": "1", "np": "1", "fltt": "2", "invt": "2",
-            "fid": "f3", "fs": "m:90+t:3", "fields": "f12,f14,f3",
-            "_": str(int(datetime.now().timestamp() * 1000)),
-        }
+        params = {"pn": "1", "pz": str(limit), "po": "1", "np": "1", "fltt": "2", "invt": "2", "fid": "f3", "fs": "m:90+t:3", "fields": "f12,f14,f3", "_": str(int(datetime.now().timestamp() * 1000))}
         r = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         r.raise_for_status()
         rows = (((r.json() or {}).get("data") or {}).get("diff") or [])
@@ -375,8 +300,7 @@ def parse_symbols(raw: str) -> List[str]:
     text = (raw or "").replace("，", ",").replace("、", ",").replace("\n", ",").replace(" ", ",")
     result, seen = [], set()
     for x in text.split(","):
-        if not x.strip():
-            continue
+        if not x.strip(): continue
         try:
             s = normalize_symbol(x)
             if s not in seen:
@@ -387,18 +311,7 @@ def parse_symbols(raw: str) -> List[str]:
 
 
 def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) -> Dict[str, Any]:
-    return {
-        "total_input": total_input,
-        "success": len(results),
-        "failed": failed,
-        "near": len([x for x in results if x.get("category") == "near"]),
-        "focus": len([x for x in results if x.get("category") == "focus"]),
-        "watch": len([x for x in results if x.get("category") in ["watch", "far"]]),
-        "far": len([x for x in results if x.get("category") == "far"]),
-        "risk": len([x for x in results if x.get("category") == "risk"]),
-        "ignore": len([x for x in results if x.get("category") == "ignore"]),
-        "quick_only": len([x for x in results if x.get("quick_only")]),
-    }
+    return {"total_input": total_input, "success": len(results), "failed": failed, "near": len([x for x in results if x.get("category") == "near"]), "focus": len([x for x in results if x.get("category") == "focus"]), "watch": len([x for x in results if x.get("category") in ["watch", "far"]]), "far": len([x for x in results if x.get("category") == "far"]), "risk": len([x for x in results if x.get("category") == "risk"]), "ignore": len([x for x in results if x.get("category") == "ignore"]), "quick_only": len([x for x in results if x.get("quick_only")])}
 
 
 @app.route("/")
@@ -408,13 +321,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({
-        "ok": True,
-        "service": "stock-5day-system-v2",
-        "version": "3.1-batch-deep",
-        "time": datetime.now().isoformat(timespec="seconds"),
-        "message": "后端正常，支持热门候选分批深度分析"
-    })
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.2-auto-batch", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持自动连续分批深度分析"})
 
 
 @app.route("/api/analyze")
@@ -438,58 +345,26 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.1-batch-deep", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.2-auto-batch", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
 def api_smart_hot():
     payload = request.get_json(silent=True) if request.method == "POST" else request.args
     payload = payload or {}
-    min_pct = float(payload.get("min_pct", 5))
     quick_limit = max(20, min(int(payload.get("quick_limit", 35)), 60))
-    deep_limit = max(0, min(int(payload.get("deep_limit", 0)), 8))
-    adjust = payload.get("adjust", "")
-
     try:
         spot_data = get_spot_candidates(limit=quick_limit)
     except Exception as e:
-        return jsonify({
-            "ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot",
-            "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。",
-            "version": "3.1-batch-deep", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}],
-        }), 200
-
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.2-auto-batch", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x) for x in candidates]
     quick_results.sort(key=lambda x: (-(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
-
-    deep_candidates = [x for x in candidates if (x.get("pct_chg") or 0) >= min_pct]
-    deep_candidates = sorted(deep_candidates, key=lambda x: (-(x.get("pct_chg") or 0), -(x.get("amount") or 0)))[:deep_limit]
-
-    deep_results, errors = [], []
-    for item in deep_candidates:
-        try:
-            meta = {"pct_chg": item.get("pct_chg"), "amount": item.get("amount"), "turnover": item.get("turnover")}
-            deep_results.append(analyze_stock(item["symbol"], adjust=adjust, name=item.get("name") or item["symbol"], spot_meta=meta))
-        except Exception as e:
-            errors.append({"symbol": item.get("symbol"), "name": item.get("name"), "error": str(e)})
-
-    deep_symbols = {x["symbol"] for x in deep_results}
-    merged = deep_results + [x for x in quick_results if x["symbol"] not in deep_symbols]
-    merged.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    merged = merged[:quick_limit]
-
-    summary = build_summary(merged, len(candidates), len(errors))
+    summary = build_summary(quick_results[:quick_limit], len(candidates), 0)
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
-    summary["deep_analyzed"] = len(deep_results)
-
-    return jsonify({
-        "ok": True, "version": "3.1-batch-deep", "mode": "eastmoney_quick_first",
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": merged,
-        "errors": errors + [{"info": x} for x in spot_data.get("errors", [])],
-    })
+    summary["deep_analyzed"] = 0
+    return jsonify({"ok": True, "version": "3.2-auto-batch", "mode": "eastmoney_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -505,16 +380,13 @@ def api_deep_batch():
                 symbols.append(normalize_symbol(str(x)))
             except Exception:
                 pass
-
     names = payload.get("names", {}) or {}
     spot = payload.get("spot", {}) or {}
     offset = int(payload.get("offset", 0))
     size = max(1, min(int(payload.get("size", 3)), 5))
     adjust = payload.get("adjust", "")
-
     if not symbols:
         return jsonify({"ok": False, "error": "没有收到需要深度分析的股票代码"}), 400
-
     batch = symbols[offset:offset + size]
     results, errors = [], []
     for sym in batch:
@@ -523,24 +395,10 @@ def api_deep_batch():
             results.append(analyze_stock(sym, adjust=adjust, name=names.get(sym, sym), spot_meta=meta))
         except Exception as e:
             errors.append({"symbol": sym, "name": names.get(sym, sym), "error": str(e)})
-
     next_offset = offset + size
     done = next_offset >= len(symbols)
-
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-
-    return jsonify({
-        "ok": True,
-        "version": "3.1-batch-deep",
-        "offset": offset,
-        "size": size,
-        "next_offset": next_offset,
-        "done": done,
-        "total": len(symbols),
-        "summary": build_summary(results, len(batch), len(errors)),
-        "results": results,
-        "errors": errors,
-    })
+    return jsonify({"ok": True, "version": "3.2-auto-batch", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
