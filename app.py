@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, List
-import json
 import traceback
 
 import pandas as pd
@@ -21,8 +20,8 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.0.3-eastmoney-fallback",
-        "hint": "后端异常已被捕获。若今日智能筛选失败，请先检测后端，再降低数量。",
+        "version": "3.1-batch-deep",
+        "hint": "后端异常已被捕获。建议降低分批深度分析数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
 
@@ -288,7 +287,7 @@ def quick_score_from_spot(item: Dict[str, Any]) -> Dict[str, Any]:
         "analysis": {"ma5": None, "ma10": None, "ma20": None, "vol_ma5": None, "distance_ma5_pct": None, "below_ma5_days": None},
         "advice": {
             "level": level,
-            "action": "快速筛选结果，只说明热度，不代表买点。买入前请点击单股分析确认5日线。",
+            "action": "快速筛选结果，只说明热度，不代表买点。可点分批深度分析确认5日线。",
             "position": "先观察，不直接追。",
             "risk": "快速候选没有做5日线深度分析，不能直接当买入信号。",
         },
@@ -297,14 +296,12 @@ def quick_score_from_spot(item: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def market_prefix(code: str) -> str:
-    # 东方财富 secid：1.上海，0.深圳
     if code.startswith(("60", "68")):
         return "1."
     return "0."
 
 
 def fetch_eastmoney_spot(page_size: int = 80, sort_field: str = "f3") -> List[Dict[str, Any]]:
-    # f12代码 f14名称 f2最新价 f3涨跌幅 f6成交额 f8换手率
     url = "https://push2.eastmoney.com/api/qt/clist/get"
     params = {
         "pn": "1",
@@ -318,10 +315,7 @@ def fetch_eastmoney_spot(page_size: int = 80, sort_field: str = "f3") -> List[Di
         "fields": "f12,f14,f2,f3,f6,f8",
         "_": str(int(datetime.now().timestamp() * 1000)),
     }
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Referer": "https://quote.eastmoney.com/",
-    }
+    headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"}
     r = requests.get(url, params=params, headers=headers, timeout=12)
     r.raise_for_status()
     data = r.json()
@@ -344,7 +338,6 @@ def fetch_eastmoney_spot(page_size: int = 80, sort_field: str = "f3") -> List[Di
 
 
 def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
-    # 使用东方财富接口，避免 Railway 上 AKShare 全市场接口崩溃
     all_rows: List[Dict[str, Any]] = []
     errors = []
     for sort_field in ["f3", "f6", "f8"]:
@@ -352,14 +345,11 @@ def get_spot_candidates(limit: int = 60) -> Dict[str, Any]:
             all_rows.extend(fetch_eastmoney_spot(page_size=limit, sort_field=sort_field))
         except Exception as e:
             errors.append(f"{sort_field}:{e}")
-
     if not all_rows:
         raise ValueError("东方财富实时行情接口不可用：" + " | ".join(errors))
-
     seen = {}
     for item in all_rows:
         seen[item["symbol"]] = item
-
     candidates = list(seen.values())
     candidates.sort(key=lambda x: (-(x.get("pct_chg") or -999), -(x.get("amount") or 0), -(x.get("turnover") or 0)))
     return {"candidates": candidates[:limit], "source_count": len(candidates), "errors": errors}
@@ -369,15 +359,8 @@ def try_fetch_theme_board(limit: int = 20) -> List[Dict[str, Any]]:
     try:
         url = "https://push2.eastmoney.com/api/qt/clist/get"
         params = {
-            "pn": "1",
-            "pz": str(limit),
-            "po": "1",
-            "np": "1",
-            "fltt": "2",
-            "invt": "2",
-            "fid": "f3",
-            "fs": "m:90+t:3",
-            "fields": "f12,f14,f3",
+            "pn": "1", "pz": str(limit), "po": "1", "np": "1", "fltt": "2", "invt": "2",
+            "fid": "f3", "fs": "m:90+t:3", "fields": "f12,f14,f3",
             "_": str(int(datetime.now().timestamp() * 1000)),
         }
         r = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
@@ -428,9 +411,9 @@ def api_health():
     return jsonify({
         "ok": True,
         "service": "stock-5day-system-v2",
-        "version": "3.0.3-eastmoney-fallback",
+        "version": "3.1-batch-deep",
         "time": datetime.now().isoformat(timespec="seconds"),
-        "message": "后端正常，今日智能筛选已改用东方财富备用行情"
+        "message": "后端正常，支持热门候选分批深度分析"
     })
 
 
@@ -455,7 +438,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.0.3-eastmoney-fallback", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.1-batch-deep", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
@@ -471,16 +454,9 @@ def api_smart_hot():
         spot_data = get_spot_candidates(limit=quick_limit)
     except Exception as e:
         return jsonify({
-            "ok": False,
-            "error": str(e),
-            "type": e.__class__.__name__,
-            "where": "eastmoney_spot",
+            "ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot",
             "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。",
-            "version": "3.0.3-eastmoney-fallback",
-            "summary": build_summary([], 0, 1),
-            "themes": [],
-            "results": [],
-            "errors": [{"error": str(e)}],
+            "version": "3.1-batch-deep", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}],
         }), 200
 
     candidates = spot_data["candidates"]
@@ -509,14 +485,61 @@ def api_smart_hot():
     summary["deep_analyzed"] = len(deep_results)
 
     return jsonify({
-        "ok": True,
-        "version": "3.0.3-eastmoney-fallback",
-        "mode": "eastmoney_quick_first",
+        "ok": True, "version": "3.1-batch-deep", "mode": "eastmoney_quick_first",
         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "summary": summary,
-        "themes": try_fetch_theme_board(limit=20),
-        "results": merged,
+        "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": merged,
         "errors": errors + [{"info": x} for x in spot_data.get("errors", [])],
+    })
+
+
+@app.route("/api/deep_batch", methods=["POST"])
+def api_deep_batch():
+    payload = request.get_json(silent=True) or {}
+    raw_symbols = payload.get("symbols", [])
+    if isinstance(raw_symbols, str):
+        symbols = parse_symbols(raw_symbols)
+    else:
+        symbols = []
+        for x in raw_symbols:
+            try:
+                symbols.append(normalize_symbol(str(x)))
+            except Exception:
+                pass
+
+    names = payload.get("names", {}) or {}
+    spot = payload.get("spot", {}) or {}
+    offset = int(payload.get("offset", 0))
+    size = max(1, min(int(payload.get("size", 3)), 5))
+    adjust = payload.get("adjust", "")
+
+    if not symbols:
+        return jsonify({"ok": False, "error": "没有收到需要深度分析的股票代码"}), 400
+
+    batch = symbols[offset:offset + size]
+    results, errors = [], []
+    for sym in batch:
+        try:
+            meta = spot.get(sym) if isinstance(spot, dict) else None
+            results.append(analyze_stock(sym, adjust=adjust, name=names.get(sym, sym), spot_meta=meta))
+        except Exception as e:
+            errors.append({"symbol": sym, "name": names.get(sym, sym), "error": str(e)})
+
+    next_offset = offset + size
+    done = next_offset >= len(symbols)
+
+    results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
+
+    return jsonify({
+        "ok": True,
+        "version": "3.1-batch-deep",
+        "offset": offset,
+        "size": size,
+        "next_offset": next_offset,
+        "done": done,
+        "total": len(symbols),
+        "summary": build_summary(results, len(batch), len(errors)),
+        "results": results,
+        "errors": errors,
     })
 
 
