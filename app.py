@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.3-risk-filter",
+        "version": "3.4-trade-plan",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -102,6 +102,46 @@ def fetch_hist(symbol: str, adjust: str = "") -> pd.DataFrame:
     if df is None or df.empty:
         raise ValueError("没有获取到行情数据，可能是代码错误、停牌或 AKShare 数据源暂时不可用")
     return df
+
+
+
+def build_trade_plan(close_price, ma5, ma10, pct_chg, distance_ma5_pct, category, level, risk_flags):
+    """生成5日线纪律交易执行计划。仅作辅助，不是买卖指令。"""
+    if close_price is None or ma5 is None:
+        return {"enabled": False, "summary": "缺少收盘价或5日线，无法生成交易计划。", "execution_steps": ["先完成深度分析，获得 MA5 / MA10 / MA20 后再判断。"]}
+    risk_text = "、".join(risk_flags) if risk_flags else "无明显风险标签"
+    watch_price = round(ma5, 2)
+    half_position_price = round(ma5 * 1.01, 2)
+    add_back_price = round(ma5 * 1.005, 2)
+    stop_loss_price = round(ma5 * 0.985, 2)
+    check_1450_price = round(ma5, 2)
+    take_profit_1 = round(close_price * 1.05, 2)
+    take_profit_2 = round(close_price * 1.10, 2)
+    if category == "safe_near":
+        summary = "安全接近买点：站上5日线且距离不远，未触发主要风险过滤。"
+        position_plan = "可进入实盘观察计划：先小仓/半仓，不能一次满仓。"
+        steps = [f"观察价：MA5 {watch_price} 附近重点观察。", f"半仓参考：回踩不破 {half_position_price} 附近，可考虑小仓/半仓。", f"回踩接回：回踩5日线后重新拉起，参考 {add_back_price}。", f"2:50检查：尾盘跌破 {check_1450_price}，先减半仓。", f"止损线：有效跌破 {stop_loss_price}，严格风控。", "连续3天收盘站不回5日线，果断清仓。"]
+    elif category == "near":
+        summary = "普通接近买点：位置接近，但仍需确认风险标签。"
+        position_plan = "只适合轻仓观察；有风险标签，不建议直接满仓。"
+        steps = [f"先看风险标签：{risk_text}。", f"观察价：MA5 {watch_price} 附近。", f"轻仓参考：回踩不破 {half_position_price} 才考虑。", f"2:50检查：跌破 {check_1450_price} 先减仓。", "风险标签未消除前，不做重仓。"]
+    elif category == "focus":
+        summary = "重点关注：强度较好，但还不是最优进场点。"
+        position_plan = "重点观察，等待回踩5日线；不追高。"
+        steps = [f"等待回踩 MA5 {watch_price}。", f"回踩不破后，观察是否重新站上 {add_back_price}。", "没有回踩，不追高。"]
+    elif category == "far":
+        summary = "强势但远离5日线：容易冲高回落。"
+        position_plan = "最多观察或小仓，不能满仓追高。"
+        steps = [f"不追现价，等待回踩 MA5 {watch_price}。", f"回踩不破后，参考 {add_back_price} 接回。", f"尾盘跌破 {check_1450_price} 不接。"]
+    elif category in ["riskfilter", "risk", "ignore"]:
+        summary = "风险过滤/不看：不符合当前5日线纪律。"
+        position_plan = "不纳入实盘计划。"
+        steps = [f"风险标签：{risk_text}。", "不买入，不加仓。", "等待重新站上5日线并解除风险标签后再分析。"]
+    else:
+        summary = "信号不足，等待更明确的5日线结构。"
+        position_plan = "观察为主。"
+        steps = [f"观察 MA5 {watch_price} 是否获得支撑。", "没有超过5个点的票不看。", "没有主力大阳线不主动进场。"]
+    return {"enabled": True, "summary": summary, "watch_price": watch_price, "half_position_price": half_position_price, "add_back_price": add_back_price, "stop_loss_price": stop_loss_price, "check_1450_price": check_1450_price, "take_profit_1": take_profit_1, "take_profit_2": take_profit_2, "clear_condition": "连续3天收盘站不回5日线，清仓。", "position_plan": position_plan, "execution_steps": steps, "risk_note": risk_text}
 
 
 def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -265,6 +305,7 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
         "quote": {"date": str(last[cols["date"]].date()), "open": last_open, "close": last_close, "volume": last_volume, "amount": amount, "turnover": turnover, "pct_chg": pct_chg},
         "analysis": {"ma5": ma5, "ma10": ma10, "ma20": ma20, "vol_ma5": vol_ma5, "distance_ma5_pct": distance_ma5_pct, "below_ma5_days": below_days},
         "advice": {"level": level, "action": action, "position": position, "risk": risk},
+        "trade_plan": build_trade_plan(last_close, ma5, ma10, pct_chg, distance_ma5_pct, category, level, risk_flags),
     }
 
 
@@ -328,6 +369,7 @@ def quick_score_from_spot(item: Dict[str, Any], enable_risk_filter: bool = True)
             "position": "不买。" if category == "riskfilter" else "先观察，不直接追。",
             "risk": "、".join(risk_flags) if risk_flags else "快速候选没有做5日线深度分析，不能直接当买入信号。",
         },
+        "trade_plan": {"enabled": False, "summary": "快速候选尚未计算5日线，不能生成实盘交易计划。请先深度分析。", "execution_steps": ["点击自动连续分析，计算 MA5 / MA10 / MA20 后再生成计划。"]},
         "quick_only": True,
     }
 
@@ -421,7 +463,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.3-risk-filter", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持风险过滤增强与安全接近买点"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.4-trade-plan", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持风险过滤增强、安全接近买点与实盘交易计划"})
 
 
 @app.route("/api/analyze")
@@ -445,7 +487,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.3-risk-filter", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.4-trade-plan", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
@@ -459,7 +501,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.3-risk-filter", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.4-trade-plan", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -467,7 +509,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.3-risk-filter", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.4-trade-plan", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -501,7 +543,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.3-risk-filter", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.4-trade-plan", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
