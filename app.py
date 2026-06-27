@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.5-fundamental-news",
+        "version": "3.6.1-tech-first",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -116,6 +116,253 @@ POSITIVE_KEYWORDS = ["业绩预增", "扭亏", "中标", "签订合同", "回购
 NEGATIVE_KEYWORDS = ["减持", "立案", "问询函", "业绩下滑", "亏损", "退市", "商誉减值", "股东质押", "解禁", "处罚", "诉讼", "风险警示"]
 
 
+
+def _first_existing_col(df: pd.DataFrame, names: List[str]) -> Optional[str]:
+    for n in names:
+        if n in df.columns:
+            return n
+    return None
+
+
+def _clean_numeric(v: Any) -> Optional[float]:
+    try:
+        if v is None or pd.isna(v):
+            return None
+        s = str(v).replace("%", "").replace(",", "").replace("万元", "").replace("亿元", "").strip()
+        if s in ["", "-", "nan", "None"]:
+            return None
+        return float(s)
+    except Exception:
+        return None
+
+
+def fetch_real_financial_profile(symbol: str) -> Dict[str, Any]:
+    """
+    尝试读取真实财务指标。
+    使用 AKShare，若接口字段变化/限流/超时，则返回可解释的降级结果。
+    """
+    profile = {
+        "ok": False,
+        "source": "akshare",
+        "annual_profit": None,
+        "quarter_profit": None,
+        "revenue_yoy": None,
+        "profit_yoy": None,
+        "roe": None,
+        "gross_margin": None,
+        "report_date": "",
+        "performance_text": "",
+        "errors": [],
+    }
+    try:
+        import akshare as ak
+        # 优先尝试财务摘要/指标接口，不同 AKShare 版本字段可能不同，所以做宽松识别
+        df = None
+        try:
+            df = ak.stock_financial_abstract_ths(symbol=symbol, indicator="按报告期")
+        except Exception as e:
+            profile["errors"].append("financial_abstract_ths:" + str(e)[:80])
+        if df is None or getattr(df, "empty", True):
+            try:
+                df = ak.stock_financial_analysis_indicator(symbol=symbol)
+            except Exception as e:
+                profile["errors"].append("financial_analysis_indicator:" + str(e)[:80])
+
+        if df is not None and not df.empty:
+            row = df.iloc[0]
+            date_col = _first_existing_col(df, ["报告期", "日期", "公告日期", "REPORT_DATE"])
+            profit_col = _first_existing_col(df, ["净利润", "归母净利润", "扣非净利润", "净利润-同比增长", "归属净利润"])
+            profit_yoy_col = _first_existing_col(df, ["净利润同比增长率", "归母净利润同比增长率", "净利润同比", "净利润增长率", "净利润-同比增长"])
+            revenue_yoy_col = _first_existing_col(df, ["营业收入同比增长率", "营收同比", "营业收入增长率", "营业总收入同比增长率"])
+            roe_col = _first_existing_col(df, ["净资产收益率", "ROE", "加权净资产收益率"])
+            gm_col = _first_existing_col(df, ["销售毛利率", "毛利率"])
+
+            profile["report_date"] = safe_str(row.get(date_col)) if date_col else ""
+            profile["quarter_profit"] = _clean_numeric(row.get(profit_col)) if profit_col else None
+            profile["profit_yoy"] = _clean_numeric(row.get(profit_yoy_col)) if profit_yoy_col else None
+            profile["revenue_yoy"] = _clean_numeric(row.get(revenue_yoy_col)) if revenue_yoy_col else None
+            profile["roe"] = _clean_numeric(row.get(roe_col)) if roe_col else None
+            profile["gross_margin"] = _clean_numeric(row.get(gm_col)) if gm_col else None
+            profile["ok"] = True
+
+        # 业绩预告接口：字段可能变化，尽量只取标题/摘要
+        try:
+            yjyg = ak.stock_yjyg_em(date=datetime.now().strftime("%Y0331"))
+            if yjyg is not None and not yjyg.empty:
+                code_col = _first_existing_col(yjyg, ["股票代码", "代码", "证券代码"])
+                if code_col:
+                    hit = yjyg[yjyg[code_col].astype(str).str.zfill(6) == symbol]
+                    if not hit.empty:
+                        r = hit.iloc[0]
+                        txt = " ".join([safe_str(x) for x in r.values[:8]])
+                        profile["performance_text"] = txt[:200]
+                        profile["ok"] = True
+        except Exception as e:
+            profile["errors"].append("yjyg:" + str(e)[:80])
+
+    except Exception as e:
+        profile["errors"].append("real_finance:" + str(e)[:120])
+    return profile
+
+
+def fetch_real_announcements(symbol: str, limit: int = 8) -> Dict[str, Any]:
+    """
+    尝试读取近期公告标题。
+    优先 AKShare；失败时返回空公告并说明原因。
+    """
+    result = {
+        "ok": False,
+        "source": "akshare",
+        "announcements": [],
+        "positive_hits": [],
+        "negative_hits": [],
+        "errors": [],
+    }
+    try:
+        import akshare as ak
+        df = None
+        funcs = [
+            ("stock_notice_report", lambda: ak.stock_notice_report(symbol="全部")),
+        ]
+        for name, fn in funcs:
+            try:
+                df = fn()
+                if df is not None and not df.empty:
+                    break
+            except Exception as e:
+                result["errors"].append(name + ":" + str(e)[:80])
+
+        if df is not None and not df.empty:
+            code_col = _first_existing_col(df, ["代码", "股票代码", "证券代码"])
+            title_col = _first_existing_col(df, ["公告标题", "标题", "公告名称"])
+            date_col = _first_existing_col(df, ["公告日期", "日期"])
+            if code_col and title_col:
+                hit = df[df[code_col].astype(str).str.zfill(6) == symbol]
+                for _, row in hit.head(limit).iterrows():
+                    title = safe_str(row.get(title_col))
+                    dt = safe_str(row.get(date_col)) if date_col else ""
+                    result["announcements"].append({"date": dt, "title": title})
+                result["ok"] = True
+
+        joined = " ".join([x["title"] for x in result["announcements"]])
+        result["positive_hits"] = [k for k in POSITIVE_KEYWORDS if k in joined]
+        result["negative_hits"] = [k for k in NEGATIVE_KEYWORDS if k in joined]
+    except Exception as e:
+        result["errors"].append("announcement:" + str(e)[:120])
+    return result
+
+
+
+MAJOR_BAD_NEWS = ["立案", "退市", "风险警示", "处罚", "问询函", "财报亏损", "净利润大幅下滑", "营收大幅下滑"]
+SOFT_BAD_NEWS = ["减持", "解禁", "亏损", "业绩下滑", "股东质押"]
+
+def apply_technical_first_adjustment(category, level, rank, smart_score, risk_flags, fundamental_profile, pct_chg, amount, turnover, distance_ma5_pct, above_ma5):
+    real = (fundamental_profile or {}).get("real_data") or {}
+    finance_risk = real.get("finance_risk") or []
+    negative_hits = (fundamental_profile or {}).get("negative_keywords") or []
+    positive_hits = (fundamental_profile or {}).get("positive_keywords") or []
+    risk_text = " ".join([str(x) for x in (risk_flags + finance_risk + negative_hits)])
+    major_bad = any(k in risk_text for k in MAJOR_BAD_NEWS)
+    soft_bad = any(k in risk_text for k in SOFT_BAD_NEWS)
+    technical_strong = (pct_chg is not None and pct_chg >= 5 and above_ma5 and amount is not None and amount >= 200_000_000 and turnover is not None and turnover >= 3)
+    near_good = distance_ma5_pct is not None and 0 <= distance_ma5_pct <= 3
+    far_high = distance_ma5_pct is not None and distance_ma5_pct >= 6
+    tag = "normal"; new_level = level; note = "技术优先：最终仍按5日线纪律执行。"; position_adjust = "按原计划执行。"
+    if major_bad:
+        if technical_strong:
+            tag="strong_but_major_risk"; new_level="技术强但公告/财报风险高"; note="技术形态较强，但存在重大公告/财报风险，只适合观察或极短线，不适合重仓隔夜。"; position_adjust="仓位降低到计划仓位的1/3以内；严格看2:50和5日线。"; smart_score=max(0, smart_score-12)
+            if category in ["quality_safe_near","safe_near"]: category="near"; rank=max(rank,2)
+        else:
+            tag="major_risk_filter"; new_level="重大风险过滤"; note="技术不够强且存在重大风险，暂不纳入买点池。"; position_adjust="不买。"; category="riskfilter"; rank=7; smart_score=max(0,smart_score-25)
+    elif soft_bad and technical_strong:
+        tag="emotion_short_term"; new_level="技术强但基本面弱"; note="技术面强，基本面/公告有瑕疵，定位为短线情绪票，不按价值票处理。"; position_adjust="只做短线；仓位降低；不适合长期拿。"; smart_score=max(0,smart_score-6)
+        if category=="quality_safe_near": category="safe_near"; rank=max(rank,1)
+    elif technical_strong and (positive_hits or ("净利润高增长" in (real.get("finance_tags") or [])) or ("营收增长" in (real.get("finance_tags") or []))):
+        if near_good and category in ["safe_near","quality_safe_near"]:
+            tag="tech_strong_with_support"; new_level="技术强且有基本面/利好支撑"; note="技术位置较好，并有公告/财务正面信号，可优先观察。"; position_adjust="仍然分批，不能一次满仓。"; category="quality_safe_near"; rank=0; smart_score=min(100,smart_score+5)
+        elif far_high:
+            tag="strong_wait_pullback"; new_level="技术强有支撑但远离5日线"; note="有支撑但已经远离5日线，仍然等回踩，不追高。"; position_adjust="等待回踩5日线附近再说。"
+    elif technical_strong and not real.get("data_ok"):
+        tag="tech_first_data_unknown"; new_level="技术强，基本面待核对"; note="技术面符合短线条件，但真实财报/公告数据不足，实盘前人工核对。"; position_adjust="按技术计划，小仓/分批执行。"
+    fundamental_profile["technical_first"]={"tag":tag,"level":new_level,"note":note,"position_adjust":position_adjust,"major_bad":bool(major_bad),"soft_bad":bool(soft_bad),"technical_strong":bool(technical_strong),"principle":"技术面决定是否进入观察，基本面决定仓位和隔夜信心。"}
+    return {"category":category,"level":new_level,"rank":rank,"smart_score":int(max(0,min(100,smart_score))),"fundamental_profile":fundamental_profile,"note":note,"position_adjust":position_adjust}
+
+
+def build_real_data_profile(
+    symbol: str,
+    name: str,
+    risk_flags: List[str],
+) -> Dict[str, Any]:
+    finance = fetch_real_financial_profile(symbol)
+    announce = fetch_real_announcements(symbol, limit=8)
+
+    data_ok = finance.get("ok") or announce.get("ok")
+    positive = list(dict.fromkeys((announce.get("positive_hits") or [])))
+    negative = list(dict.fromkeys((announce.get("negative_hits") or [])))
+
+    finance_tags = []
+    q_profit = finance.get("quarter_profit")
+    profit_yoy = finance.get("profit_yoy")
+    revenue_yoy = finance.get("revenue_yoy")
+    roe = finance.get("roe")
+
+    if q_profit is not None:
+        finance_tags.append("盈利" if q_profit > 0 else "亏损")
+    if profit_yoy is not None:
+        if profit_yoy >= 30:
+            finance_tags.append("净利润高增长")
+        elif profit_yoy < -20:
+            finance_tags.append("净利润下滑")
+    if revenue_yoy is not None:
+        if revenue_yoy >= 20:
+            finance_tags.append("营收增长")
+        elif revenue_yoy < -10:
+            finance_tags.append("营收下滑")
+    if roe is not None and roe >= 8:
+        finance_tags.append("ROE较好")
+
+    if finance.get("performance_text"):
+        txt = finance.get("performance_text", "")
+        positive += [k for k in POSITIVE_KEYWORDS if k in txt]
+        negative += [k for k in NEGATIVE_KEYWORDS if k in txt]
+
+    finance_risk = []
+    if q_profit is not None and q_profit < 0:
+        finance_risk.append("财报亏损")
+    if profit_yoy is not None and profit_yoy < -30:
+        finance_risk.append("净利润大幅下滑")
+    if revenue_yoy is not None and revenue_yoy < -20:
+        finance_risk.append("营收大幅下滑")
+    if negative:
+        finance_risk.append("公告利空")
+
+    conclusion = "真实数据不足，按轻量规则辅助判断"
+    if data_ok:
+        if finance_risk:
+            conclusion = "真实财报/公告存在风险，需要谨慎"
+        elif positive or ("净利润高增长" in finance_tags) or ("营收增长" in finance_tags):
+            conclusion = "真实财报/公告存在积极信号，可提高关注级别"
+        elif finance_tags:
+            conclusion = "真实财务数据为中性或待进一步确认"
+        else:
+            conclusion = "已尝试读取真实数据，但可用字段有限"
+
+    return {
+        "enabled": True,
+        "data_ok": bool(data_ok),
+        "finance": finance,
+        "announcements": announce.get("announcements") or [],
+        "finance_tags": list(dict.fromkeys(finance_tags)),
+        "positive_hits": list(dict.fromkeys(positive)),
+        "negative_hits": list(dict.fromkeys(negative)),
+        "finance_risk": finance_risk,
+        "conclusion": conclusion,
+        "errors": (finance.get("errors") or []) + (announce.get("errors") or []),
+        "data_note": "真实数据来自 AKShare 财务/公告接口；如接口限流、字段变化或数据缺失，会自动降级到轻量验证。",
+    }
+
+
+
 def infer_themes(name: str, symbol: str = "") -> List[str]:
     """轻量级题材推断。没有外部公告源时，用名称关键词做保守判断。"""
     n = (name or "").lower()
@@ -149,6 +396,7 @@ def build_fundamental_news_profile(
     turnover: Optional[float],
     risk_flags: List[str],
     category: str,
+    real_profile: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Railway 免费环境里尽量避免重接口。
@@ -208,6 +456,28 @@ def build_fundamental_news_profile(
         performance_score -= 35
     performance_score = max(0, min(100, performance_score))
 
+    # 真实财报与公告数据加权
+    real_profile = real_profile or {"enabled": False}
+    real_positive = real_profile.get("positive_hits") or []
+    real_negative = real_profile.get("negative_hits") or []
+    finance_tags = real_profile.get("finance_tags") or []
+    finance_risk = real_profile.get("finance_risk") or []
+
+    positive = list(dict.fromkeys(positive + real_positive))
+    negative = list(dict.fromkeys(negative + real_negative))
+
+    if "净利润高增长" in finance_tags or "营收增长" in finance_tags or real_positive:
+        performance_score += 18
+        good_news_score = min(100, good_news_score + 15)
+    if finance_risk or real_negative:
+        performance_score -= 28
+        good_news_score = max(0, good_news_score - 22)
+    if "财报亏损" in finance_risk or "净利润大幅下滑" in finance_risk:
+        risk_flags = list(dict.fromkeys(risk_flags + finance_risk))
+
+    performance_score = max(0, min(100, performance_score))
+
+
     # 风险分越高越危险
     risk_score = 0
     for flag in risk_flags:
@@ -254,7 +524,9 @@ def build_fundamental_news_profile(
         "final_level": final_level,
         "final_tag": final_tag,
         "conclusion": conclusion,
-        "data_note": "当前为轻量验证版：题材和利好为关键词/规则识别，年度和季度业绩暂以风险标签中性评分表示，实盘前需核对公告和财报。",
+        "real_data": real_profile,
+        "real_data_ok": bool(real_profile.get("data_ok")) if real_profile else False,
+        "data_note": "V3.6真实数据版：优先读取真实财务/公告数据；接口失败时自动降级到关键词/规则识别。实盘前仍需人工核对公告和财报。",
     }
 
 
@@ -455,6 +727,7 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
     if amount and amount >= 1_000_000_000: tags.append("成交额活跃")
     if turnover and turnover >= 8: tags.append("高换手")
     tags.extend(risk_flags)
+    real_data_profile = build_real_data_profile(symbol=symbol, name=name or symbol, risk_flags=risk_flags)
     fundamental_profile = build_fundamental_news_profile(
         symbol=symbol,
         name=name or symbol,
@@ -463,6 +736,7 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
         turnover=turnover,
         risk_flags=risk_flags,
         category=category,
+        real_profile=real_data_profile,
     )
 
     if category == "safe_near" and fundamental_profile.get("final_tag") == "quality_safe_near":
@@ -475,6 +749,30 @@ def analyze_stock(symbol: str, adjust: str = "", name: str = "", spot_meta: Opti
         risk = "实盘前必须核对公告、财报和分时走势。"
         fundamental_profile["final_level"] = "优质安全接近买点"
         fundamental_profile["final_tag"] = "quality_safe_near"
+
+    tech_adjust = apply_technical_first_adjustment(
+        category=category,
+        level=level,
+        rank=rank,
+        smart_score=smart_score,
+        risk_flags=risk_flags,
+        fundamental_profile=fundamental_profile,
+        pct_chg=pct_chg,
+        amount=amount,
+        turnover=turnover,
+        distance_ma5_pct=distance_ma5_pct,
+        above_ma5=above_ma5,
+    )
+    category = tech_adjust["category"]
+    level = tech_adjust["level"]
+    rank = tech_adjust["rank"]
+    smart_score = tech_adjust["smart_score"]
+    fundamental_profile = tech_adjust["fundamental_profile"]
+    if tech_adjust.get("note"):
+        tags.append(tech_adjust["level"])
+        risk = (risk + "；" if risk else "") + tech_adjust["note"]
+    if tech_adjust.get("position_adjust") and tech_adjust["position_adjust"] != "按原计划执行。":
+        position = position + "；" + tech_adjust["position_adjust"]
 
 
     return {
@@ -628,6 +926,8 @@ def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) 
     return {
         "total_input": total_input, "success": len(results), "failed": failed,
         "quality_safe_near": len([x for x in results if x.get("category") == "quality_safe_near"]),
+        "emotion_short_term": len([x for x in results if ((x.get("fundamental_profile") or {}).get("technical_first") or {}).get("tag") == "emotion_short_term"]),
+        "major_risk": len([x for x in results if ((x.get("fundamental_profile") or {}).get("technical_first") or {}).get("major_bad")]),
         "safe_near": len([x for x in results if x.get("category") == "safe_near"]),
         "near": len([x for x in results if x.get("category") == "near"]),
         "focus": len([x for x in results if x.get("category") == "focus"]),
@@ -647,7 +947,22 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.5-fundamental-news", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持业绩与利好验证、风险过滤、安全买点与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.1-tech-first", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持技术优先、基本面辅助、公告财报风险提醒与实盘交易计划"})
+
+
+
+@app.route("/api/real_profile")
+def api_real_profile():
+    try:
+        symbol = normalize_symbol(request.args.get("symbol", ""))
+        return jsonify({
+            "ok": True,
+            "version": "3.6.1-tech-first",
+            "symbol": symbol,
+            "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__}), 400
 
 
 @app.route("/api/analyze")
@@ -671,7 +986,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.5-fundamental-news", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.1-tech-first", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
@@ -685,7 +1000,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.5-fundamental-news", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.1-tech-first", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -693,7 +1008,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.5-fundamental-news", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.6.1-tech-first", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -727,7 +1042,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.5-fundamental-news", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.1-tech-first", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
