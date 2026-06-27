@@ -1,19 +1,25 @@
-# 5日线强势股交易纪律系统 V3.7.1.1：Railway启动修复版
+# 5日线强势股交易纪律系统 V3.7.2：undefined显示修复 + 风险提示去重版
 
-修复重点：
-- 针对 502 Bad Gateway / Application failed to respond 做启动稳定性修复
-- 保留 V3.7.1 底仓做T纪律模块
-- 增加 /api/startup_check 启动诊断接口
-- 移除 __pycache__
-- 增加 .python-version，建议 Railway 使用 Python 3.11.9
-- pandas 导入失败时不直接拖垮首页，改为接口提示
+本版在 V3.7.1 基础上修复前端显示问题。
+
+修复内容：
+- 修复“操作建议：undefined”
+- 修复“仓位：undefined”
+- 修复“风控：undefined”
+- 风险过滤提示去重，不再重复显示两遍
+- 后端统一补齐 operation_advice / position_advice / risk_advice
+- 无效 MA5 股票仍然会显示风险过滤，但不生成5日线交易计划
+- 保留底仓做T纪律模块
+- 保留有效5日线过滤、新股异常过滤、财报稳定、大盘情绪
 
 检查：
-/api/health
-/api/startup_check
-/api/t_discipline
+/api/health 应显示 3.7.2-ui-undefined-fix
+/api/ui_fix_status 可查看显示修复状态
+/api/t_discipline 可查看做T规则
+/api/filter_status 可查看过滤规则
 
 刷新：
-网站地址/?v=3711
+网站地址/?v=372
 
-风险提示：本系统为复盘和交易纪律辅助工具，不构成投资建议。
+风险提示：
+本系统为复盘和交易纪律辅助工具，不构成投资建议。

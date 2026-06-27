@@ -23,7 +23,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.7.1.1-railway-startup-fix",
+        "version": "3.7.2-ui-undefined-fix",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -1031,7 +1031,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.1.1-railway-startup-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.2-ui-undefined-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1041,7 +1041,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.7.1.1-railway-startup-fix",
+            "version": "3.7.2-ui-undefined-fix",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1074,7 +1074,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.1.1-railway-startup-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.2-ui-undefined-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
 
 
 
@@ -1668,7 +1668,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.7.1.1-railway-startup-fix",
+            "version": "3.7.2-ui-undefined-fix",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1676,7 +1676,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.1.1-railway-startup-fix",
+            "version": "3.7.2-ui-undefined-fix",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -1826,7 +1826,7 @@ def mark_validity(item: Dict[str, Any]) -> Dict[str, Any]:
         x["t_discipline"] = build_t_discipline_text(x)
     except Exception:
         pass
-    return x
+    return normalize_card_text_fields(x)
 
 def filter_valid_candidates(items, keep_invalid: bool = False):
     """
@@ -1851,6 +1851,66 @@ def sort_valid_candidates(items):
         )
     return sorted(items or [], key=key, reverse=True)
 # ===== end V3.7 filters =====
+
+# ===== V3.7.2 card field normalization =====
+def normalize_card_text_fields(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    修复前端 undefined：
+    给操作建议、仓位、风控、交易计划做统一兜底。
+    """
+    x = dict(item or {})
+
+    invalid = x.get("invalid_reasons") or []
+    invalid_text = "、".join([str(i) for i in invalid]) if isinstance(invalid, list) else str(invalid or "")
+
+    # 操作建议
+    operation = (
+        x.get("operation_advice")
+        or x.get("operate_advice")
+        or x.get("action_advice")
+        or x.get("advice")
+        or x.get("suggestion")
+        or x.get("conclusion")
+    )
+
+    # 仓位建议
+    position = (
+        x.get("position_advice")
+        or x.get("position")
+        or x.get("仓位")
+    )
+
+    # 风控建议
+    risk = (
+        x.get("risk_advice")
+        or x.get("risk_control")
+        or x.get("risk_text")
+        or x.get("风控")
+    )
+
+    if x.get("valid_for_5day_system") is False:
+        operation = operation or "触发风险过滤，先排除，不作为5日线候选。"
+        position = position or "不买；不加仓；如已有底仓，仅作观察。"
+        risk = risk or (invalid_text or "MA5缺失或数据异常")
+        x["trading_plan"] = x.get("trading_plan") or "无有效5日线或触发异常过滤，不能生成实盘交易计划。"
+        x["trading_plan_text"] = x.get("trading_plan_text") or x["trading_plan"]
+    else:
+        operation = operation or "先观察，等待回踩5日线或尾盘确认，不追高。"
+        position = position or "最多半仓；先小仓确认，不能一次满仓。"
+        risk = risk or "跌破5日线减半；连续3天收盘站不回5日线，清仓。"
+        x["trading_plan"] = x.get("trading_plan") or x.get("trading_plan_text") or "按5日线纪律执行：观察价、半仓价、止损价、2:50检查价、回踩接回价。"
+        x["trading_plan_text"] = x.get("trading_plan_text") or x["trading_plan"]
+
+    x["operation_advice"] = str(operation)
+    x["position_advice"] = str(position)
+    x["risk_advice"] = str(risk)
+    x["advice"] = str(operation)
+    x["position"] = str(position)
+    x["risk_text"] = str(risk)
+    return x
+# ===== end V3.7.2 normalization =====
+
+
 
 
 def get_trading_session_status() -> Dict[str, Any]:
@@ -1957,11 +2017,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.1.1-railway-startup-fix",
+            "version": "3.7.2-ui-undefined-fix",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.1.1-railway-startup-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.2-ui-undefined-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2168,11 +2228,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.1.1-railway-startup-fix",
+            "version": "3.7.2-ui-undefined-fix",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.1.1-railway-startup-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.2-ui-undefined-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2248,7 +2308,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.7.1.1-railway-startup-fix",
+            "version": "3.7.2-ui-undefined-fix",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -2257,7 +2317,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.1.1-railway-startup-fix",
+            "version": "3.7.2-ui-undefined-fix",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -2282,7 +2342,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.1.1-railway-startup-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.2-ui-undefined-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -2290,7 +2350,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.7.1.1-railway-startup-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.7.2-ui-undefined-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -2324,7 +2384,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.1.1-railway-startup-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.2-ui-undefined-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
 
 
 
@@ -2333,7 +2393,7 @@ def api_deep_batch():
 def api_startup_check():
     info = {
         "ok": True,
-        "version": "3.7.1.1-railway-startup-fix",
+        "version": "3.7.2-ui-undefined-fix",
         "flask_app": True,
         "pandas_loaded": pd is not None,
     }
@@ -2350,7 +2410,7 @@ def api_startup_check():
 def api_filter_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.1.1-railway-startup-fix",
+        "version": "3.7.2-ui-undefined-fix",
         "filters": [
             "排除 N/C/U/W 新股或特殊上市标识",
             "排除涨幅超过30%的异常波动票",
@@ -2369,7 +2429,7 @@ def api_filter_status():
 def api_t_discipline():
     return jsonify({
         "ok": True,
-        "version": "3.7.1.1-railway-startup-fix",
+        "version": "3.7.2-ui-undefined-fix",
         "position_principle": "做T是围绕已有底仓赚日内波动差价，不是额外加仓；目标是降低持仓成本，而不是频繁追涨杀跌。",
         "types": {
             "positive_t": "正T：低位买入，高位卖出，适合盘中急跌后修复，但必须有底仓和纪律。",
@@ -2387,6 +2447,22 @@ def api_t_discipline():
         },
         "risks": ["越T成本越高", "卖飞强势股", "没有底仓乱加仓", "弱势股越补越套", "频繁操作影响判断"],
         "disclaimer": "本模块是持仓纪律辅助，不是买卖指令，不构成投资建议。"
+    })
+
+
+@app.route("/api/ui_fix_status", methods=["GET"])
+def api_ui_fix_status():
+    return jsonify({
+        "ok": True,
+        "version": "3.7.2-ui-undefined-fix",
+        "fixes": [
+            "操作建议 undefined 兜底",
+            "仓位 undefined 兜底",
+            "风控 undefined 兜底",
+            "风险过滤提示去重",
+            "无效5日线不生成交易计划",
+            "做T纪律不重复插入风险过滤"
+        ]
     })
 
 if __name__ == "__main__":
