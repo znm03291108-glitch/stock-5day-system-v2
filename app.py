@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.6.7.2-single-analysis-fix",
+        "version": "3.6.8-finance-stable",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -1026,7 +1026,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.7.2-single-analysis-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.8-finance-stable", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1036,7 +1036,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.6.7.2-single-analysis-fix",
+            "version": "3.6.8-finance-stable",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1069,7 +1069,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.7.2-single-analysis-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.8-finance-stable", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 
@@ -1218,9 +1218,271 @@ def fetch_real_data(symbol: str) -> Dict[str, Any]:
 
 
 
+
+# ===== V3.6.8 finance stable helpers =====
+def normalize_finance_value(v):
+    try:
+        if v is None:
+            return None
+        s = str(v).replace("%", "").replace(",", "").strip()
+        if s in ["", "-", "--", "nan", "None", "暂无"]:
+            return None
+        return float(s)
+    except Exception:
+        return None
+
+
+def finance_pick(row: Dict[str, Any], keyword_groups):
+    """
+    多字段兼容：AKShare 不同接口字段名称经常变动，这里用关键词模糊匹配。
+    """
+    if not row:
+        return None
+    for group in keyword_groups:
+        for col, val in row.items():
+            c = str(col).lower()
+            ok = True
+            for k in group:
+                if str(k).lower() not in c:
+                    ok = False
+                    break
+            if ok:
+                vv = normalize_finance_value(val)
+                if vv is not None:
+                    return vv
+    return None
+
+
+def stable_fetch_finance_from_akshare(symbol: str) -> Dict[str, Any]:
+    """
+    V3.6.8 稳定财报读取：
+    1. 多接口尝试
+    2. 多字段名兼容
+    3. 取不到时返回 unavailable，不误判为差
+    """
+    result = {
+        "ok": False,
+        "source": "akshare-stable",
+        "errors": [],
+        "report_date": None,
+        "profit_yoy": None,
+        "revenue_yoy": None,
+        "gross_margin": None,
+        "roe": None,
+        "report_is_stale": None,
+        "report_sort_status": "财报暂未取得",
+        "data_available": False,
+        "confidence": "低",
+        "missing_reason": "暂未取得有效财报字段",
+    }
+
+    try:
+        import akshare as ak
+        import pandas as pd
+    except Exception as e:
+        result["errors"].append("akshare_import:" + str(e)[:100])
+        result["missing_reason"] = "AKShare 未安装或导入失败"
+        return result
+
+    api_candidates = [
+        ("stock_financial_analysis_indicator", {"symbol": symbol}),
+        ("stock_financial_abstract", {"symbol": symbol}),
+        ("stock_financial_report_sina", {"stock": symbol, "symbol": "利润表"}),
+        ("stock_financial_report_sina", {"stock": symbol, "symbol": "资产负债表"}),
+    ]
+
+    best_row = None
+    best_source = None
+    best_date_col = None
+
+    for api_name, kwargs in api_candidates:
+        try:
+            fn = getattr(ak, api_name, None)
+            if not callable(fn):
+                continue
+            df = fn(**kwargs)
+            if df is None or len(df) == 0:
+                result["errors"].append(api_name + ": empty")
+                continue
+
+            # 只取 DataFrame
+            try:
+                df = df.copy()
+            except Exception:
+                result["errors"].append(api_name + ": not_dataframe")
+                continue
+
+            date_col = None
+            for c in df.columns:
+                cs = str(c)
+                if any(k in cs for k in ["日期", "报告期", "截止", "公告日期", "报表日期"]):
+                    date_col = c
+                    break
+
+            if date_col:
+                try:
+                    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+                    df = df.sort_values(date_col, ascending=False)
+                except Exception:
+                    pass
+
+            row = df.iloc[0].to_dict()
+            # 简单评分：能取到越多关键字段越好
+            p = finance_pick(row, [["净利润", "同比"], ["净利润", "增长"], ["归母", "同比"], ["归属", "同比"]])
+            r = finance_pick(row, [["营业收入", "同比"], ["营收", "同比"], ["主营", "增长"], ["营业收入", "增长"]])
+            gm = finance_pick(row, [["毛利率"], ["销售", "毛利"]])
+            roe = finance_pick(row, [["roe"], ["净资产收益率"], ["净资产", "收益"]])
+
+            score = sum(x is not None for x in [p, r, gm, roe])
+            if score > 0:
+                best_row = row
+                best_source = api_name
+                best_date_col = date_col
+                break
+
+        except Exception as e:
+            result["errors"].append(api_name + ":" + str(e)[:120])
+
+    if not best_row:
+        return result
+
+    profit_yoy = finance_pick(best_row, [["净利润", "同比"], ["净利润", "增长"], ["归母", "同比"], ["归属", "同比"]])
+    revenue_yoy = finance_pick(best_row, [["营业收入", "同比"], ["营收", "同比"], ["主营", "增长"], ["营业收入", "增长"]])
+    gross_margin = finance_pick(best_row, [["毛利率"], ["销售", "毛利"]])
+    roe = finance_pick(best_row, [["roe"], ["净资产收益率"], ["净资产", "收益"]])
+
+    report_date = None
+    if best_date_col:
+        try:
+            val = best_row.get(best_date_col)
+            report_date = str(val)[:10]
+        except Exception:
+            pass
+    if not report_date:
+        for col, val in best_row.items():
+            if any(k in str(col) for k in ["日期", "报告期", "截止", "公告日期", "报表日期"]):
+                report_date = str(val)[:10]
+                break
+
+    fields_count = sum(x is not None for x in [profit_yoy, revenue_yoy, gross_margin, roe])
+    result.update({
+        "ok": fields_count > 0,
+        "source": best_source or "akshare-stable",
+        "report_date": report_date,
+        "profit_yoy": profit_yoy,
+        "revenue_yoy": revenue_yoy,
+        "gross_margin": gross_margin,
+        "roe": roe,
+        "report_is_stale": False if report_date else None,
+        "report_sort_status": "已按报告期倒序取最新" if report_date else "已取得字段，但未识别报告期",
+        "data_available": fields_count > 0,
+        "confidence": "高" if fields_count >= 3 else ("中" if fields_count >= 2 else "低"),
+        "missing_reason": "" if fields_count > 0 else "未匹配到有效财务字段",
+    })
+    return result
+
+
+def stable_finance_unavailable(symbol: str, reason: str = "财报接口暂未返回有效字段") -> Dict[str, Any]:
+    return {
+        "enabled": True,
+        "data_OK": False,
+        "data_available": False,
+        "finance_mode": "technical_only",
+        "data_note": "财报暂未取得，本次不参与评分；请以技术面、5日线、大盘情绪和题材持续性为主。",
+        "finance": {
+            "ok": False,
+            "source": "stable-unavailable",
+            "errors": [],
+            "report_date": None,
+            "profit_yoy": None,
+            "revenue_yoy": None,
+            "gross_margin": None,
+            "roe": None,
+            "report_is_stale": None,
+            "report_sort_status": "财报暂未取得",
+            "data_available": False,
+            "confidence": "无",
+            "missing_reason": reason,
+        },
+        "announcements": [],
+        "positive_hits": [],
+        "negative_hits": [],
+        "finance_tags": [],
+        "finance_risk": [],
+        "conclusion": "财报暂未取得，本次不参与评分；该结果按仅技术面模式处理。",
+        "symbol": symbol,
+    }
+
+
+def fetch_real_data_stable(symbol: str) -> Dict[str, Any]:
+    symbol = safe_str(symbol)
+    # 先尝试旧函数，但旧函数可能返回空字段，因此需要二次校验
+    old = None
+    for fn_name in ["fetch_real_data_for_symbol", "get_real_data", "fetch_finance_and_news", "fetch_company_real_data"]:
+        fn = globals().get(fn_name)
+        if callable(fn):
+            try:
+                old = fn(symbol)
+                f = (old or {}).get("finance") or {}
+                if f.get("report_date") or f.get("profit_yoy") is not None or f.get("revenue_yoy") is not None or f.get("gross_margin") is not None or f.get("roe") is not None:
+                    old["data_available"] = True
+                    old["finance_mode"] = "finance_available"
+                    old.setdefault("data_note", "已取得部分真实财报/公告数据。")
+                    old.setdefault("symbol", symbol)
+                    return old
+            except Exception:
+                pass
+
+    fin = stable_fetch_finance_from_akshare(symbol)
+    if not fin.get("data_available"):
+        return stable_finance_unavailable(symbol, fin.get("missing_reason") or "财报接口暂未返回有效字段")
+
+    rd = {
+        "enabled": True,
+        "data_OK": True,
+        "data_available": True,
+        "finance_mode": "finance_available",
+        "data_note": "已通过稳定兼容模式取得财报字段；如字段不全，会降低置信度。",
+        "finance": fin,
+        "announcements": [],
+        "positive_hits": [],
+        "negative_hits": [],
+        "finance_tags": [],
+        "finance_risk": [],
+        "conclusion": "已取得部分财报字段，可作为辅助参考。",
+        "symbol": symbol,
+    }
+
+    if fin.get("profit_yoy") is not None and fin["profit_yoy"] > 30:
+        rd["finance_tags"].append("净利润增长")
+    if fin.get("revenue_yoy") is not None and fin["revenue_yoy"] < 0:
+        rd["finance_risk"].append("营收下滑")
+    if fin.get("gross_margin") is not None and fin["gross_margin"] >= 30:
+        rd["finance_tags"].append("毛利率较好")
+    if fin.get("roe") is not None and fin["roe"] < 5:
+        rd["finance_risk"].append("ROE偏弱")
+
+    if rd["finance_tags"] and not rd["finance_risk"]:
+        rd["conclusion"] = "财报存在积极信号，可作为辅助加分项。"
+    elif rd["finance_tags"] and rd["finance_risk"]:
+        rd["conclusion"] = "财报有亮点但也有风险，不能简单理解为全面利好。"
+    elif rd["finance_risk"]:
+        rd["conclusion"] = "财报存在风险点，建议降低基本面权重。"
+
+    return rd
+
+
+# 覆盖兼容函数名，保证所有旧调用都走稳定逻辑
+def fetch_real_data(symbol: str) -> Dict[str, Any]:
+    return fetch_real_data_stable(symbol)
+# ===== end V3.6.8 finance stable helpers =====
+
+
+
 def explain_finance_result(real_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    将财报/公告原始数据转换为中文解释，方便前端展示。
+    V3.6.8：财报中文解释稳定版。
+    关键原则：财报取不到不等于财报差，不参与评分，不误判为谨慎低分。
     """
     rd = real_data or {}
     finance = rd.get("finance") or {}
@@ -1229,95 +1491,101 @@ def explain_finance_result(real_data: Dict[str, Any]) -> Dict[str, Any]:
     finance_tags = rd.get("finance_tags") or []
     finance_risk = rd.get("finance_risk") or []
 
+    data_available = bool(rd.get("data_available") or finance.get("data_available") or finance.get("ok"))
     report_date = finance.get("report_date")
     profit_yoy = finance.get("profit_yoy")
     revenue_yoy = finance.get("revenue_yoy")
     gross_margin = finance.get("gross_margin")
     roe = finance.get("roe")
-    report_is_stale = finance.get("report_is_stale", False)
     source = finance.get("source", "akshare")
     report_sort_status = finance.get("report_sort_status", "")
-
-    positives = []
-    risks = []
-    neutral = []
+    confidence = finance.get("confidence", "未知")
+    missing_reason = finance.get("missing_reason", "")
 
     def nfmt(v, suffix="%"):
-        if v is None:
+        vv = normalize_finance_value(v)
+        if vv is None:
             return "暂无"
-        try:
-            return f"{float(v):.2f}{suffix}"
-        except Exception:
-            return str(v)
+        return f"{vv:.2f}{suffix}"
 
-    if report_is_stale:
-        risks.append("财报数据过旧，只能作为历史参考，不参与评分。")
-    elif report_date:
-        positives.append(f"已读取最新报告期：{report_date}。")
+    # 没有财报数据：不扣分，不给谨慎，只显示“未取得”
+    if not data_available or all(normalize_finance_value(x) is None for x in [profit_yoy, revenue_yoy, gross_margin, roe]):
+        return {
+            "score": None,
+            "level": "未取得",
+            "conclusion": "财报数据暂未取得，本次不参与评分；请以技术面、5日线、大盘情绪和题材持续性为主。",
+            "report_date": report_date,
+            "report_is_stale": None,
+            "source": source,
+            "report_sort_status": report_sort_status or "财报暂未取得",
+            "confidence": "无",
+            "data_available": False,
+            "missing_reason": missing_reason or "接口未返回有效财报字段",
+            "metrics": {
+                "profit_yoy": "暂无",
+                "revenue_yoy": "暂无",
+                "gross_margin": "暂无",
+                "roe": "暂无",
+            },
+            "positives": [],
+            "risks": [],
+            "neutral": ["财报缺失不代表公司基本面差，只表示本系统本次未成功取得有效字段。"],
+            "human_summary": "财报评级：未取得。本次不参与评分，按仅技术面模式处理。"
+        }
 
-    if profit_yoy is None:
+    positives, risks, neutral = [], [], []
+
+    if report_date:
+        positives.append(f"已读取报告期：{report_date}。")
+
+    p = normalize_finance_value(profit_yoy)
+    r = normalize_finance_value(revenue_yoy)
+    gm = normalize_finance_value(gross_margin)
+    rv = normalize_finance_value(roe)
+
+    if p is None:
         neutral.append("净利润同比暂无数据。")
+    elif p >= 100:
+        positives.append(f"净利润同比大幅增长 {nfmt(p)}，属于明显积极信号。")
+    elif p >= 30:
+        positives.append(f"净利润同比增长 {nfmt(p)}，盈利改善较明显。")
+    elif p >= 0:
+        neutral.append(f"净利润同比小幅增长 {nfmt(p)}，盈利有改善但不算特别强。")
+    elif p <= -30:
+        risks.append(f"净利润同比下降 {nfmt(p)}，盈利压力较大。")
     else:
-        try:
-            p = float(profit_yoy)
-            if p >= 100:
-                positives.append(f"净利润同比大幅增长 {nfmt(p)}，属于明显积极信号。")
-            elif p >= 30:
-                positives.append(f"净利润同比增长 {nfmt(p)}，盈利改善较明显。")
-            elif p >= 0:
-                neutral.append(f"净利润同比小幅增长 {nfmt(p)}，盈利有改善但不算特别强。")
-            elif p <= -30:
-                risks.append(f"净利润同比下降 {nfmt(p)}，盈利压力较大。")
-            else:
-                risks.append(f"净利润同比下降 {nfmt(p)}，需要关注盈利稳定性。")
-        except Exception:
-            neutral.append(f"净利润同比：{profit_yoy}")
+        risks.append(f"净利润同比下降 {nfmt(p)}，需要关注盈利稳定性。")
 
-    if revenue_yoy is None:
+    if r is None:
         neutral.append("营收同比暂无数据。")
+    elif r >= 30:
+        positives.append(f"营收同比增长 {nfmt(r)}，主营扩张较明显。")
+    elif r >= 0:
+        neutral.append(f"营收同比增长 {nfmt(r)}，主营相对稳定。")
+    elif r <= -15:
+        risks.append(f"营收同比下降 {nfmt(r)}，收入端承压，需要重点核对。")
     else:
-        try:
-            r = float(revenue_yoy)
-            if r >= 30:
-                positives.append(f"营收同比增长 {nfmt(r)}，主营扩张较明显。")
-            elif r >= 0:
-                neutral.append(f"营收同比增长 {nfmt(r)}，主营相对稳定。")
-            elif r <= -15:
-                risks.append(f"营收同比下降 {nfmt(r)}，说明收入端承压，需要重点核对。")
-            else:
-                risks.append(f"营收同比小幅下降 {nfmt(r)}，需观察后续恢复情况。")
-        except Exception:
-            neutral.append(f"营收同比：{revenue_yoy}")
+        risks.append(f"营收同比小幅下降 {nfmt(r)}，需观察后续恢复情况。")
 
-    if gross_margin is None:
+    if gm is None:
         neutral.append("毛利率暂无数据。")
+    elif gm >= 40:
+        positives.append(f"毛利率 {nfmt(gm)}，盈利质量较好。")
+    elif gm >= 20:
+        neutral.append(f"毛利率 {nfmt(gm)}，处于可接受区间。")
     else:
-        try:
-            gm = float(gross_margin)
-            if gm >= 40:
-                positives.append(f"毛利率 {nfmt(gm)}，盈利质量较好。")
-            elif gm >= 20:
-                neutral.append(f"毛利率 {nfmt(gm)}，处于可接受区间。")
-            elif gm >= 0:
-                risks.append(f"毛利率 {nfmt(gm)}，偏低，需要注意利润质量。")
-        except Exception:
-            neutral.append(f"毛利率：{gross_margin}")
+        risks.append(f"毛利率 {nfmt(gm)}，偏低，需要注意利润质量。")
 
-    if roe is None:
+    if rv is None:
         neutral.append("ROE 暂无数据。")
+    elif rv >= 15:
+        positives.append(f"ROE {nfmt(rv)}，股东回报能力较强。")
+    elif rv >= 8:
+        neutral.append(f"ROE {nfmt(rv)}，回报能力中等。")
+    elif rv >= 0:
+        risks.append(f"ROE {nfmt(rv)}，回报能力偏弱。")
     else:
-        try:
-            rv = float(roe)
-            if rv >= 15:
-                positives.append(f"ROE {nfmt(rv)}，股东回报能力较强。")
-            elif rv >= 8:
-                neutral.append(f"ROE {nfmt(rv)}，回报能力中等。")
-            elif rv >= 0:
-                risks.append(f"ROE {nfmt(rv)}，回报能力偏弱。")
-            else:
-                risks.append(f"ROE {nfmt(rv)}，为负值，需谨慎。")
-        except Exception:
-            neutral.append(f"ROE：{roe}")
+        risks.append(f"ROE {nfmt(rv)}，为负值，需谨慎。")
 
     if positive_hits:
         positives.append("公告中发现积极关键词：" + "、".join([str(x) for x in positive_hits[:5]]) + "。")
@@ -1328,26 +1596,24 @@ def explain_finance_result(real_data: Dict[str, Any]) -> Dict[str, Any]:
     if finance_risk:
         risks.append("财报风险：" + "、".join([str(x) for x in finance_risk[:5]]) + "。")
 
-    score = 50
-    score += min(30, len(positives) * 7)
-    score -= min(35, len(risks) * 9)
-    if profit_yoy is not None:
-        try:
-            p = float(profit_yoy)
-            if p >= 100: score += 12
-            elif p >= 30: score += 8
-            elif p < -30: score -= 12
-        except Exception:
-            pass
-    if revenue_yoy is not None:
-        try:
-            r = float(revenue_yoy)
-            if r >= 20: score += 8
-            elif r < -15: score -= 10
-        except Exception:
-            pass
-    if report_is_stale:
-        score = min(score, 45)
+    score = 55
+    score += min(25, len(positives) * 6)
+    score -= min(30, len(risks) * 8)
+    if p is not None:
+        if p >= 100: score += 10
+        elif p >= 30: score += 6
+        elif p < -30: score -= 10
+    if r is not None:
+        if r >= 20: score += 6
+        elif r < -15: score -= 8
+    if confidence == "低":
+        neutral.append("财报字段置信度较低，建议只作为轻量参考。")
+        score = min(score, 65)
+
+    # 利润增但营收降：降低过度乐观
+    if p is not None and r is not None and p > 50 and r < 0:
+        risks.append("净利润增长但营收下降，可能存在低基数、费用变化或非经常性因素，需要重点核对利润来源。")
+        score = min(score, 68)
 
     score = max(0, min(100, int(score)))
 
@@ -1364,29 +1630,22 @@ def explain_finance_result(real_data: Dict[str, Any]) -> Dict[str, Any]:
         level = "谨慎"
         conclusion = "财报或公告存在压力，建议降低关注等级，实盘前必须核对原始公告。"
 
-    # 特殊提醒：利润增长但营收下降
-    try:
-        if profit_yoy is not None and revenue_yoy is not None and float(profit_yoy) > 50 and float(revenue_yoy) < 0:
-            risks.append("净利润增长但营收下降，可能存在低基数、费用变化或非经常性因素，需要重点核对利润来源。")
-            conclusion = "财报有亮点，但营收下降，不能简单理解为基本面全面变强。"
-            if level == "积极":
-                level = "偏积极"
-    except Exception:
-        pass
-
     return {
         "score": score,
         "level": level,
         "conclusion": conclusion,
         "report_date": report_date,
-        "report_is_stale": report_is_stale,
+        "report_is_stale": finance.get("report_is_stale"),
         "source": source,
         "report_sort_status": report_sort_status,
+        "confidence": confidence,
+        "data_available": True,
+        "missing_reason": "",
         "metrics": {
-            "profit_yoy": nfmt(profit_yoy) if profit_yoy is not None else "暂无",
-            "revenue_yoy": nfmt(revenue_yoy) if revenue_yoy is not None else "暂无",
-            "gross_margin": nfmt(gross_margin) if gross_margin is not None else "暂无",
-            "roe": nfmt(roe) if roe is not None else "暂无",
+            "profit_yoy": nfmt(p),
+            "revenue_yoy": nfmt(r),
+            "gross_margin": nfmt(gm),
+            "roe": nfmt(rv),
         },
         "positives": positives[:8],
         "risks": risks[:8],
@@ -1404,7 +1663,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.6.7.2-single-analysis-fix",
+            "version": "3.6.8-finance-stable",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1412,7 +1671,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.7.2-single-analysis-fix",
+            "version": "3.6.8-finance-stable",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -1524,11 +1783,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.7.2-single-analysis-fix",
+            "version": "3.6.8-finance-stable",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.7.2-single-analysis-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.6.8-finance-stable", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1735,11 +1994,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.7.2-single-analysis-fix",
+            "version": "3.6.8-finance-stable",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.7.2-single-analysis-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.6.8-finance-stable", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1815,7 +2074,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.6.7.2-single-analysis-fix",
+            "version": "3.6.8-finance-stable",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -1824,7 +2083,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.7.2-single-analysis-fix",
+            "version": "3.6.8-finance-stable",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -1849,7 +2108,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.7.2-single-analysis-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.8-finance-stable", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -1857,7 +2116,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.6.7.2-single-analysis-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.6.8-finance-stable", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -1891,7 +2150,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.7.2-single-analysis-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.8-finance-stable", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
