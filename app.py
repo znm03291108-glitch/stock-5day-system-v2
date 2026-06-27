@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.6.5-market-sentiment",
+        "version": "3.6.6-trading-day-status",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -269,8 +269,10 @@ def fetch_real_announcements(symbol: str, limit: int = 8) -> Dict[str, Any]:
     尝试读取近期公告标题。
     优先 AKShare；失败时返回空公告并说明原因。
     """
+    trading_status = get_trading_session_status()
     result = {
         "ok": False,
+        "trading_status": trading_status,
         "source": "akshare",
         "announcements": [],
         "positive_hits": [],
@@ -1022,7 +1024,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.5-market-sentiment", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持大盘情绪联动、题材点击后自动深度分析、最新财报修正与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.6-trading-day-status", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持交易日状态识别、大盘情绪联动、题材点击后自动深度分析与实盘交易计划"})
 
 
 
@@ -1032,7 +1034,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.6.5-market-sentiment",
+            "version": "3.6.6-trading-day-status",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1061,8 +1063,121 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.5-market-sentiment", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.6-trading-day-status", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
+
+
+
+
+def get_trading_session_status() -> Dict[str, Any]:
+    """
+    A股交易时间状态识别。节假日无法100%识别，因此：
+    - 周六周日：非交易日
+    - 工作日：按交易时段识别盘前/盘中/午休/尾盘/收盘后
+    - 法定节假日需要实盘前人工核对
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    except Exception:
+        now = datetime.utcnow() + timedelta(hours=8)
+
+    weekday = now.weekday()  # 0 Mon, 6 Sun
+    hm = now.hour * 60 + now.minute
+    is_weekend = weekday >= 5
+    is_trading_day = not is_weekend
+
+    # minutes
+    t_0925 = 9 * 60 + 25
+    t_0930 = 9 * 60 + 30
+    t_1130 = 11 * 60 + 30
+    t_1300 = 13 * 60
+    t_1440 = 14 * 60 + 40
+    t_1450 = 14 * 60 + 50
+    t_1500 = 15 * 60
+
+    if is_weekend:
+        session = "周末/非交易日"
+        data_mode = "复盘参考"
+        is_live = False
+        hint = "当前为周末，A股不开盘。题材、涨幅、成交额多为上一交易日收盘数据，只适合复盘和准备观察池。"
+        action = "不要按实时盘中买卖判断；可整理下周观察名单。"
+    elif hm < t_0925:
+        session = "盘前"
+        data_mode = "盘前准备"
+        is_live = False
+        hint = "当前为盘前，实时成交和题材持续性尚未确认。"
+        action = "只做预选，不急于买入；等9:40后看题材是否延续。"
+    elif t_0925 <= hm < t_0930:
+        session = "集合竞价"
+        data_mode = "竞价参考"
+        is_live = True
+        hint = "当前为集合竞价，价格波动较大，不能只看竞价冲高。"
+        action = "观察竞价强弱，等开盘后确认承接。"
+    elif t_0930 <= hm < t_1130:
+        session = "早盘交易中"
+        data_mode = "盘中快照"
+        is_live = True
+        hint = "当前为早盘交易时间，行情快照有参考价值，但容易冲高回落。"
+        action = "9:40后筛选更稳定；不追远离5日线的票。"
+    elif t_1130 <= hm < t_1300:
+        session = "午间休市"
+        data_mode = "上午复盘"
+        is_live = False
+        hint = "当前为午间休市，数据停留在上午收盘附近。"
+        action = "适合复盘上午题材，下午开盘后再确认。"
+    elif t_1300 <= hm < t_1440:
+        session = "午后交易中"
+        data_mode = "盘中快照"
+        is_live = True
+        hint = "当前为午后交易时间，可观察题材是否继续强。"
+        action = "重点看承接和量能，不追明显远离5日线的票。"
+    elif t_1440 <= hm < t_1450:
+        session = "尾盘观察"
+        data_mode = "尾盘检查"
+        is_live = True
+        hint = "当前接近尾盘，适合检查是否跌破5日线、是否站回5日线。"
+        action = "按纪律执行：跌破5日线减仓，站不回不硬扛。"
+    elif t_1450 <= hm < t_1500:
+        session = "2:50纪律执行"
+        data_mode = "实盘纪律"
+        is_live = True
+        hint = "当前为2:50纪律执行窗口。"
+        action = "重点执行减半仓、止损、是否留仓，不再临时冲动追高。"
+    else:
+        session = "收盘后"
+        data_mode = "收盘复盘"
+        is_live = False
+        hint = "当前已收盘，行情数据是收盘复盘数据。"
+        action = "适合总结观察池和制定明日计划，不是实时买卖判断。"
+
+    return {
+        "ok": True,
+        "timezone": "Asia/Shanghai",
+        "now": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "weekday": weekday,
+        "weekday_name": ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][weekday],
+        "is_weekend": is_weekend,
+        "is_trading_day_likely": is_trading_day,
+        "session": session,
+        "data_mode": data_mode,
+        "is_live_window": is_live,
+        "hint": hint,
+        "action": action,
+        "holiday_note": "系统可识别周末和交易时段，但法定节假日仍需人工核对交易所日历。"
+    }
+
+
+@app.route("/api/trading_status")
+def api_trading_status():
+    try:
+        return jsonify({
+            "ok": True,
+            "version": "3.6.6-trading-day-status",
+            "trading_status": get_trading_session_status(),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "version": "3.6.6-trading-day-status", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1269,11 +1384,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.6.5-market-sentiment",
+            "version": "3.6.6-trading-day-status",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.6.5-market-sentiment", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.6.6-trading-day-status", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -1345,7 +1460,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.6.5-market-sentiment",
+            "version": "3.6.6-trading-day-status",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -1354,7 +1469,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.6.5-market-sentiment",
+            "version": "3.6.6-trading-day-status",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -1375,7 +1490,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.5-market-sentiment", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.6-trading-day-status", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -1383,7 +1498,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.6.5-market-sentiment", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.6.6-trading-day-status", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -1417,7 +1532,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.5-market-sentiment", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.6-trading-day-status", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
