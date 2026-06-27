@@ -20,7 +20,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.6.1-tech-first",
+        "version": "3.6.2-latest-report-fix",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -136,6 +136,54 @@ def _clean_numeric(v: Any) -> Optional[float]:
         return None
 
 
+
+def _parse_report_date(v: Any) -> Optional[pd.Timestamp]:
+    try:
+        if v is None or pd.isna(v):
+            return None
+        s = str(v).strip()
+        if not s or s in ["-", "nan", "None"]:
+            return None
+        # 兼容 2024-12-31 / 20241231 / 2024年12月31日
+        s = s.replace("年", "-").replace("月", "-").replace("日", "")
+        return pd.to_datetime(s, errors="coerce")
+    except Exception:
+        return None
+
+
+def _pick_latest_finance_row(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    从财务表中自动识别报告期字段，并按报告期倒序取最新一行。
+    避免 AKShare 返回 2012 年等旧数据时直接使用第一行。
+    """
+    if df is None or df.empty:
+        return {"row": None, "date_col": None, "latest_date": None, "sorted": False}
+
+    date_col = _first_existing_col(df, ["报告期", "日期", "公告日期", "REPORT_DATE", "report_date", "截止日期", "报表日期"])
+    work = df.copy()
+
+    if date_col:
+        work["_report_dt"] = work[date_col].apply(_parse_report_date)
+        work = work.dropna(subset=["_report_dt"])
+        if not work.empty:
+            work = work.sort_values("_report_dt", ascending=False).reset_index(drop=True)
+            row = work.iloc[0]
+            return {"row": row, "date_col": date_col, "latest_date": row["_report_dt"], "sorted": True}
+
+    # 如果没有日期字段，保守返回第一行，但标记未排序
+    return {"row": df.iloc[0], "date_col": date_col, "latest_date": None, "sorted": False}
+
+
+def _report_is_stale(report_dt: Optional[pd.Timestamp], max_days: int = 500) -> bool:
+    try:
+        if report_dt is None or pd.isna(report_dt):
+            return True
+        now = pd.Timestamp(datetime.now().date())
+        return (now - report_dt).days > max_days
+    except Exception:
+        return True
+
+
 def fetch_real_financial_profile(symbol: str) -> Dict[str, Any]:
     """
     尝试读取真实财务指标。
@@ -151,6 +199,8 @@ def fetch_real_financial_profile(symbol: str) -> Dict[str, Any]:
         "roe": None,
         "gross_margin": None,
         "report_date": "",
+        "report_is_stale": True,
+        "report_sort_status": "未排序",
         "performance_text": "",
         "errors": [],
     }
@@ -169,21 +219,30 @@ def fetch_real_financial_profile(symbol: str) -> Dict[str, Any]:
                 profile["errors"].append("financial_analysis_indicator:" + str(e)[:80])
 
         if df is not None and not df.empty:
-            row = df.iloc[0]
-            date_col = _first_existing_col(df, ["报告期", "日期", "公告日期", "REPORT_DATE"])
-            profit_col = _first_existing_col(df, ["净利润", "归母净利润", "扣非净利润", "净利润-同比增长", "归属净利润"])
-            profit_yoy_col = _first_existing_col(df, ["净利润同比增长率", "归母净利润同比增长率", "净利润同比", "净利润增长率", "净利润-同比增长"])
-            revenue_yoy_col = _first_existing_col(df, ["营业收入同比增长率", "营收同比", "营业收入增长率", "营业总收入同比增长率"])
-            roe_col = _first_existing_col(df, ["净资产收益率", "ROE", "加权净资产收益率"])
-            gm_col = _first_existing_col(df, ["销售毛利率", "毛利率"])
+            picked = _pick_latest_finance_row(df)
+            row = picked.get("row")
+            date_col = picked.get("date_col")
+            latest_dt = picked.get("latest_date")
+            profile["report_sort_status"] = "已按报告期倒序取最新" if picked.get("sorted") else "未识别报告期，保守使用原始第一行"
 
-            profile["report_date"] = safe_str(row.get(date_col)) if date_col else ""
-            profile["quarter_profit"] = _clean_numeric(row.get(profit_col)) if profit_col else None
-            profile["profit_yoy"] = _clean_numeric(row.get(profit_yoy_col)) if profit_yoy_col else None
-            profile["revenue_yoy"] = _clean_numeric(row.get(revenue_yoy_col)) if revenue_yoy_col else None
-            profile["roe"] = _clean_numeric(row.get(roe_col)) if roe_col else None
-            profile["gross_margin"] = _clean_numeric(row.get(gm_col)) if gm_col else None
-            profile["ok"] = True
+            if row is not None:
+                profit_col = _first_existing_col(df, ["净利润", "归母净利润", "扣非净利润", "净利润-同比增长", "归属净利润"])
+                profit_yoy_col = _first_existing_col(df, ["净利润同比增长率", "归母净利润同比增长率", "净利润同比", "净利润增长率", "净利润-同比增长"])
+                revenue_yoy_col = _first_existing_col(df, ["营业收入同比增长率", "营收同比", "营业收入增长率", "营业总收入同比增长率"])
+                roe_col = _first_existing_col(df, ["净资产收益率", "ROE", "加权净资产收益率"])
+                gm_col = _first_existing_col(df, ["销售毛利率", "毛利率"])
+
+                profile["report_date"] = str(latest_dt.date()) if latest_dt is not None and not pd.isna(latest_dt) else (safe_str(row.get(date_col)) if date_col else "")
+                profile["report_is_stale"] = _report_is_stale(latest_dt, max_days=500)
+                profile["quarter_profit"] = _clean_numeric(row.get(profit_col)) if profit_col else None
+                profile["profit_yoy"] = _clean_numeric(row.get(profit_yoy_col)) if profit_yoy_col else None
+                profile["revenue_yoy"] = _clean_numeric(row.get(revenue_yoy_col)) if revenue_yoy_col else None
+                profile["roe"] = _clean_numeric(row.get(roe_col)) if roe_col else None
+                profile["gross_margin"] = _clean_numeric(row.get(gm_col)) if gm_col else None
+                profile["ok"] = True
+
+                if profile["report_is_stale"]:
+                    profile["errors"].append("财报报告期过旧或无法确认最新报告期，不参与加分")
 
         # 业绩预告接口：字段可能变化，尽量只取标题/摘要
         try:
@@ -301,6 +360,7 @@ def build_real_data_profile(
     negative = list(dict.fromkeys((announce.get("negative_hits") or [])))
 
     finance_tags = []
+    report_stale = bool(finance.get("report_is_stale", True))
     q_profit = finance.get("quarter_profit")
     profit_yoy = finance.get("profit_yoy")
     revenue_yoy = finance.get("revenue_yoy")
@@ -321,6 +381,14 @@ def build_real_data_profile(
     if roe is not None and roe >= 8:
         finance_tags.append("ROE较好")
 
+    if report_stale:
+        finance_tags = ["财报数据过旧"] if finance.get("report_date") else ["财报日期缺失"]
+        # 过旧财报不参与盈利/增长加分，只作为参考显示
+        q_profit = None
+        profit_yoy = None
+        revenue_yoy = None
+        roe = None
+
     if finance.get("performance_text"):
         txt = finance.get("performance_text", "")
         positive += [k for k in POSITIVE_KEYWORDS if k in txt]
@@ -338,7 +406,9 @@ def build_real_data_profile(
 
     conclusion = "真实数据不足，按轻量规则辅助判断"
     if data_ok:
-        if finance_risk:
+        if report_stale:
+            conclusion = "真实财报报告期过旧或无法确认最新，仅作参考，不参与加分"
+        elif finance_risk:
             conclusion = "真实财报/公告存在风险，需要谨慎"
         elif positive or ("净利润高增长" in finance_tags) or ("营收增长" in finance_tags):
             conclusion = "真实财报/公告存在积极信号，可提高关注级别"
@@ -462,16 +532,21 @@ def build_fundamental_news_profile(
     real_negative = real_profile.get("negative_hits") or []
     finance_tags = real_profile.get("finance_tags") or []
     finance_risk = real_profile.get("finance_risk") or []
+    real_finance = real_profile.get("finance") or {}
+    real_report_stale = bool(real_finance.get("report_is_stale", True))
 
     positive = list(dict.fromkeys(positive + real_positive))
     negative = list(dict.fromkeys(negative + real_negative))
 
-    if "净利润高增长" in finance_tags or "营收增长" in finance_tags or real_positive:
+    if (not real_report_stale) and ("净利润高增长" in finance_tags or "营收增长" in finance_tags or real_positive):
         performance_score += 18
         good_news_score = min(100, good_news_score + 15)
     if finance_risk or real_negative:
         performance_score -= 28
         good_news_score = max(0, good_news_score - 22)
+    if real_report_stale:
+        # 过旧财报不扣技术分，只取消基本面加分，并提示人工核对
+        performance_score = min(performance_score, 60)
     if "财报亏损" in finance_risk or "净利润大幅下滑" in finance_risk:
         risk_flags = list(dict.fromkeys(risk_flags + finance_risk))
 
@@ -947,7 +1022,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.1-tech-first", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持技术优先、基本面辅助、公告财报风险提醒与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.6.2-latest-report-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持最新财报修正、技术优先、基本面辅助、公告财报风险提醒与实盘交易计划"})
 
 
 
@@ -957,7 +1032,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.6.1-tech-first",
+            "version": "3.6.2-latest-report-fix",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -986,7 +1061,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.1-tech-first", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.2-latest-report-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": results, "errors": errors})
 
 
 @app.route("/api/smart_hot", methods=["POST", "GET"])
@@ -1000,7 +1075,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.1-tech-first", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.6.2-latest-report-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -1008,7 +1083,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.6.1-tech-first", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.6.2-latest-report-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -1042,7 +1117,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.6.1-tech-first", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
+    return jsonify({"ok": True, "version": "3.6.2-latest-report-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": results, "errors": errors})
 
 
 if __name__ == "__main__":
