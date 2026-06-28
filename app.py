@@ -23,7 +23,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.7.2-ui-undefined-fix",
+        "version": "3.7.3-clean-results-object-fix",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -1024,6 +1024,173 @@ def build_summary(results: List[Dict[str, Any]], total_input: int, failed: int) 
     }
 
 
+
+# ===== V3.7.3 clean result helpers =====
+def object_to_text_v373(v, fallback: str = "") -> str:
+    """把 dict/list 转成中文文本，避免前端显示 [object Object]。"""
+    try:
+        if v is None:
+            return fallback
+        if isinstance(v, str):
+            s = v.strip()
+            if s in ["", "undefined", "null", "None", "[object Object]"]:
+                return fallback
+            return s
+        if isinstance(v, dict):
+            label_map = {
+                "action": "操作",
+                "advice": "建议",
+                "suggestion": "建议",
+                "reason": "原因",
+                "risk": "风险",
+                "position": "仓位",
+                "conclusion": "结论",
+                "text": "",
+                "summary": "总结",
+                "plan": "计划"
+            }
+            parts = []
+            for k, val in v.items():
+                txt = object_to_text_v373(val, "")
+                if not txt:
+                    continue
+                label = label_map.get(str(k), str(k))
+                parts.append(f"{label}：{txt}" if label else txt)
+            return "；".join(parts) if parts else fallback
+        if isinstance(v, (list, tuple)):
+            parts = [object_to_text_v373(x, "") for x in v]
+            parts = [x for x in parts if x]
+            return "；".join(parts) if parts else fallback
+        return str(v)
+    except Exception:
+        return fallback
+
+def is_st_stock_v373(symbol: str = "", name: str = "") -> bool:
+    n = safe_str(name).upper()
+    return "ST" in n or "*ST" in n or "退市" in n or n.endswith("退")
+
+def strict_invalid_reasons_v373(item: Dict[str, Any]) -> list:
+    x = item or {}
+    symbol = safe_str(x.get("symbol") or x.get("code"))
+    name = safe_str(x.get("name"))
+    up_name = name.upper()
+    reasons = []
+
+    if up_name.startswith(("N", "C", "U", "W")) or "新股" in name or "次新" in name:
+        reasons.append("新股/特殊上市标识")
+    if is_st_stock_v373(symbol, name):
+        reasons.append("ST/退市风险")
+
+    ma5 = to_float_safe(x.get("ma5") or x.get("MA5") or x.get("ma_5"), None)
+    close = to_float_safe(x.get("close") or x.get("price") or x.get("收盘"), None)
+    if ma5 is None or close is None or ma5 <= 0 or close <= 0:
+        reasons.append("MA5缺失或无效")
+
+    pct = to_float_safe(x.get("pct_chg") or x.get("change_pct") or x.get("涨幅") or x.get("pct"), None)
+    if pct is not None and abs(pct) > 30:
+        reasons.append("涨幅异常超过30%")
+
+    turnover = to_float_safe(x.get("turnover") or x.get("turnover_rate") or x.get("换手率"), None)
+    if turnover is not None and turnover > 35:
+        reasons.append("换手率过高")
+
+    amount = to_float_safe(x.get("amount") or x.get("turnover_amount") or x.get("成交额"), None)
+    if amount is not None:
+        if amount < 1:
+            reasons.append("成交额不足1亿")
+        elif 10000 < amount < 100000000:
+            reasons.append("成交额不足1亿")
+
+    return list(dict.fromkeys([r for r in reasons if r]))
+
+def normalize_clean_card_v373(item: Dict[str, Any]) -> Dict[str, Any]:
+    x = dict(item or {})
+    old_reasons = x.get("invalid_reasons") or []
+    reasons = strict_invalid_reasons_v373(x)
+    if isinstance(old_reasons, list):
+        reasons = list(dict.fromkeys(old_reasons + reasons))
+    elif old_reasons:
+        reasons = list(dict.fromkeys([str(old_reasons)] + reasons))
+
+    valid = len(reasons) == 0
+    x["invalid_reasons"] = reasons
+    x["valid_ma5"] = False if "MA5缺失或无效" in reasons else True
+    x["valid_for_5day_system"] = valid
+    x["main_result_visible"] = valid
+    x["quick_candidate_only"] = not valid
+    x["data_quality"] = "有效5日线" if valid else "快速候选/已过滤"
+
+    score = to_float_safe(x.get("score") or x.get("smart_score"), 0) or 0
+    if not valid:
+        score = min(int(score), 59)
+        if "ST/退市风险" in reasons or "新股/特殊上市标识" in reasons:
+            score = min(score, 39)
+        if "MA5缺失或无效" in reasons:
+            score = min(score, 49)
+    x["score"] = int(score)
+    x["smart_score"] = int(score)
+
+    op = object_to_text_v373(
+        x.get("operation_advice") or x.get("operate_advice") or x.get("action_advice") or x.get("advice") or x.get("suggestion") or x.get("conclusion"), ""
+    )
+    pos = object_to_text_v373(x.get("position_advice") or x.get("position") or x.get("仓位"), "")
+    risk = object_to_text_v373(x.get("risk_advice") or x.get("risk_control") or x.get("risk_text") or x.get("风控"), "")
+
+    if not valid:
+        reason_text = "、".join(reasons)
+        op = "快速候选，仅说明热度，不代表买点；已触发过滤：" + reason_text
+        pos = "不买；不加仓；如已有底仓，仅作观察。"
+        risk = reason_text + "；不参与5日线交易计划。"
+        x["trading_plan"] = "快速候选尚未形成有效5日线，不能生成实盘交易计划。请先做单股深度分析。"
+        x["trading_plan_text"] = x["trading_plan"]
+        x["tag"] = "风险过滤"
+        x["badge"] = "风险过滤"
+    else:
+        op = op or "有效5日线候选；先观察，等待回踩5日线或尾盘确认，不追高。"
+        pos = pos or "最多半仓；先小仓确认，不能一次满仓。"
+        risk = risk or "跌破5日线减半；连续3天收盘站不回5日线，清仓。"
+        x["badge"] = x.get("badge") or "有效5日线"
+
+    x["operation_advice"] = op
+    x["advice"] = op
+    x["position_advice"] = pos
+    x["position"] = pos
+    x["risk_advice"] = risk
+    x["risk_text"] = risk
+    x["trading_plan"] = object_to_text_v373(x.get("trading_plan") or x.get("trading_plan_text"), "按5日线纪律观察。")
+    x["trading_plan_text"] = object_to_text_v373(x.get("trading_plan_text") or x.get("trading_plan"), x["trading_plan"])
+    return x
+
+def clean_results_v373(items, default_only_valid: bool = True, max_items: int = None):
+    cleaned = [normalize_clean_card_v373(x) for x in (items or [])]
+    valid = [x for x in cleaned if x.get("valid_for_5day_system")]
+    removed = [x for x in cleaned if not x.get("valid_for_5day_system")]
+
+    def sort_key(x):
+        return (
+            to_float_safe(x.get("score") or x.get("smart_score"), 0) or 0,
+            to_float_safe(x.get("pct_chg") or x.get("change_pct"), 0) or 0,
+            to_float_safe(x.get("amount") or x.get("turnover_amount"), 0) or 0,
+        )
+
+    valid = sorted(valid, key=sort_key, reverse=True)
+    removed = sorted(removed, key=sort_key, reverse=True)
+    if max_items:
+        valid = valid[:max_items]
+    return {
+        "results": valid if default_only_valid else valid + removed,
+        "valid_results": valid,
+        "removed_results": removed,
+        "clean_stats": {
+            "valid_count": len(valid),
+            "removed_count": len(removed),
+            "total_count": len(cleaned),
+            "mode": "默认只展示有效5日线"
+        }
+    }
+# ===== end V3.7.3 clean result helpers =====
+
+
 @app.route("/")
 def index():
     return send_from_directory(".", "index.html")
@@ -1031,7 +1198,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.2-ui-undefined-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.3-clean-results-object-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1041,7 +1208,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.7.2-ui-undefined-fix",
+            "version": "3.7.3-clean-results-object-fix",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1074,7 +1241,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.2-ui-undefined-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.3-clean-results-object-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": clean_results_v373(results)["results"], "clean_stats": clean_results_v373(results)["clean_stats"], "removed_results": clean_results_v373(results)["removed_results"], "errors": errors})
 
 
 
@@ -1668,7 +1835,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.7.2-ui-undefined-fix",
+            "version": "3.7.3-clean-results-object-fix",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1676,7 +1843,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.2-ui-undefined-fix",
+            "version": "3.7.3-clean-results-object-fix",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -1826,7 +1993,7 @@ def mark_validity(item: Dict[str, Any]) -> Dict[str, Any]:
         x["t_discipline"] = build_t_discipline_text(x)
     except Exception:
         pass
-    return normalize_card_text_fields(x)
+    return normalize_clean_card_v373(x)
 
 def filter_valid_candidates(items, keep_invalid: bool = False):
     """
@@ -2017,11 +2184,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.2-ui-undefined-fix",
+            "version": "3.7.3-clean-results-object-fix",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.2-ui-undefined-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.3-clean-results-object-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2228,11 +2395,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.2-ui-undefined-fix",
+            "version": "3.7.3-clean-results-object-fix",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.2-ui-undefined-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.3-clean-results-object-fix", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2308,16 +2475,16 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.7.2-ui-undefined-fix",
+            "version": "3.7.3-clean-results-object-fix",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
-            "results": sort_valid_candidates([mark_validity(x) for x in results]),
+            "results": clean_results_v373(results)["results"], "clean_stats": clean_results_v373(results)["clean_stats"], "removed_results": clean_results_v373(results)["removed_results"],
         })
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.2-ui-undefined-fix",
+            "version": "3.7.3-clean-results-object-fix",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -2342,7 +2509,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.2-ui-undefined-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.3-clean-results-object-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -2350,7 +2517,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.7.2-ui-undefined-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.7.3-clean-results-object-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -2384,7 +2551,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.2-ui-undefined-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": sort_valid_candidates([mark_validity(x) for x in results]), "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.3-clean-results-object-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": clean_results_v373(results)["results"], "clean_stats": clean_results_v373(results)["clean_stats"], "removed_results": clean_results_v373(results)["removed_results"], "errors": errors})
 
 
 
@@ -2393,7 +2560,7 @@ def api_deep_batch():
 def api_startup_check():
     info = {
         "ok": True,
-        "version": "3.7.2-ui-undefined-fix",
+        "version": "3.7.3-clean-results-object-fix",
         "flask_app": True,
         "pandas_loaded": pd is not None,
     }
@@ -2410,7 +2577,7 @@ def api_startup_check():
 def api_filter_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.2-ui-undefined-fix",
+        "version": "3.7.3-clean-results-object-fix",
         "filters": [
             "排除 N/C/U/W 新股或特殊上市标识",
             "排除涨幅超过30%的异常波动票",
@@ -2429,7 +2596,7 @@ def api_filter_status():
 def api_t_discipline():
     return jsonify({
         "ok": True,
-        "version": "3.7.2-ui-undefined-fix",
+        "version": "3.7.3-clean-results-object-fix",
         "position_principle": "做T是围绕已有底仓赚日内波动差价，不是额外加仓；目标是降低持仓成本，而不是频繁追涨杀跌。",
         "types": {
             "positive_t": "正T：低位买入，高位卖出，适合盘中急跌后修复，但必须有底仓和纪律。",
@@ -2454,7 +2621,7 @@ def api_t_discipline():
 def api_ui_fix_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.2-ui-undefined-fix",
+        "version": "3.7.3-clean-results-object-fix",
         "fixes": [
             "操作建议 undefined 兜底",
             "仓位 undefined 兜底",
@@ -2463,6 +2630,32 @@ def api_ui_fix_status():
             "无效5日线不生成交易计划",
             "做T纪律不重复插入风险过滤"
         ]
+    })
+
+
+@app.route("/api/clean_filter_status", methods=["GET"])
+def api_clean_filter_status():
+    demo = [
+        {"symbol":"001399", "name":"N惠科", "pct_chg":315.02, "close":42.00, "ma5":None, "score":95, "turnover":65.92},
+        {"symbol":"300338", "name":"*ST开元", "pct_chg":17.39, "close":2.97, "ma5":None, "score":95, "amount":0.7602},
+        {"symbol":"300592", "name":"华凯易佰", "pct_chg":12.94, "close":16.93, "ma5":15.31, "score":80, "amount":4.9}
+    ]
+    return jsonify({
+        "ok": True,
+        "version": "3.7.3-clean-results-object-fix",
+        "principle": "主结果默认只展示有效5日线；新股、ST、MA5缺失、异常涨幅自动降级或过滤。",
+        "rules": [
+            "修复 [object Object]",
+            "默认只展示有效5日线",
+            "N/C/U/W 新股或特殊上市标识过滤",
+            "ST/*ST/退市风险过滤",
+            "MA5缺失或无效过滤",
+            "涨幅超过30%过滤",
+            "换手率超过35%标记高风险",
+            "成交额不足1亿过滤",
+            "无效候选最高分限制，不生成交易计划"
+        ],
+        "demo": clean_results_v373(demo, default_only_valid=False)
     })
 
 if __name__ == "__main__":
