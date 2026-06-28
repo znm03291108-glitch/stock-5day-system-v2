@@ -23,7 +23,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.7.3-clean-results-object-fix",
+        "version": "3.7.3.1-strong-clean-filter",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -1191,6 +1191,98 @@ def clean_results_v373(items, default_only_valid: bool = True, max_items: int = 
 # ===== end V3.7.3 clean result helpers =====
 
 
+
+# ===== V3.7.3.1 stronger clean helpers =====
+def clean_badge_v3731(item: Dict[str, Any]) -> str:
+    x = item or {}
+    if x.get("valid_for_5day_system") is False or x.get("valid_ma5") is False:
+        return "已过滤"
+    if x.get("safe_buy_point"):
+        return "安全买点"
+    if x.get("near_buy_point"):
+        return "接近买点"
+    if x.get("main_result_visible"):
+        return "有效5日线"
+    return "候选"
+
+def force_strong_clean_v3731(item: Dict[str, Any]) -> Dict[str, Any]:
+    x = normalize_clean_card_v373(item)
+    reasons = list(x.get("invalid_reasons") or [])
+
+    name = safe_str(x.get("name")).upper()
+    symbol = safe_str(x.get("symbol") or x.get("code"))
+
+    ma5 = to_float_safe(x.get("ma5") or x.get("MA5") or x.get("ma_5"), None)
+    close = to_float_safe(x.get("close") or x.get("price") or x.get("收盘"), None)
+    pct = to_float_safe(x.get("pct_chg") or x.get("change_pct") or x.get("涨幅") or x.get("pct"), None)
+
+    # 再兜底一次：只要 MA5 无效，就不允许进入主股票卡
+    if ma5 is None or close is None or ma5 <= 0 or close <= 0:
+        reasons.append("MA5缺失或无效")
+    if name.startswith(("N", "C", "U", "W")) or "新股" in name or "次新" in name:
+        reasons.append("新股/特殊上市标识")
+    if "ST" in name or "退" in name:
+        reasons.append("ST/退市风险")
+    if pct is not None and abs(pct) > 30:
+        reasons.append("涨幅异常超过30%")
+
+    reasons = list(dict.fromkeys([r for r in reasons if r]))
+    valid = len(reasons) == 0
+
+    x["invalid_reasons"] = reasons
+    x["valid_for_5day_system"] = valid
+    x["valid_ma5"] = valid
+    x["main_result_visible"] = valid
+    x["quick_candidate_only"] = not valid
+    x["badge"] = clean_badge_v3731(x)
+    x["tag"] = x["badge"]
+
+    if not valid:
+        x["score"] = min(int(to_float_safe(x.get("score") or x.get("smart_score"), 49) or 49), 49)
+        x["smart_score"] = x["score"]
+        x["operation_advice"] = "快速候选，仅说明热度，不代表买点；已触发过滤：" + "、".join(reasons)
+        x["advice"] = x["operation_advice"]
+        x["position_advice"] = "不买；不加仓；如已有底仓，仅作观察。"
+        x["position"] = x["position_advice"]
+        x["risk_advice"] = "、".join(reasons) + "；不参与5日线交易计划。"
+        x["risk_text"] = x["risk_advice"]
+        x["trading_plan"] = "快速候选尚未计算有效5日线，不能生成实盘交易计划。请先深度分析。"
+        x["trading_plan_text"] = x["trading_plan"]
+    else:
+        x["badge"] = clean_badge_v3731(x)
+        x["tag"] = x["badge"]
+
+    return x
+
+def clean_results_v3731(items, default_only_valid: bool = True, max_items: int = None):
+    cleaned = [force_strong_clean_v3731(x) for x in (items or [])]
+    valid = [x for x in cleaned if x.get("valid_for_5day_system") is True and x.get("valid_ma5") is True]
+    removed = [x for x in cleaned if x not in valid]
+
+    def sort_key(x):
+        return (
+            to_float_safe(x.get("score") or x.get("smart_score"), 0) or 0,
+            to_float_safe(x.get("pct_chg") or x.get("change_pct"), 0) or 0,
+            to_float_safe(x.get("amount") or x.get("turnover_amount"), 0) or 0,
+        )
+    valid = sorted(valid, key=sort_key, reverse=True)
+    removed = sorted(removed, key=sort_key, reverse=True)
+    if max_items:
+        valid = valid[:max_items]
+    return {
+        "results": valid if default_only_valid else valid + removed,
+        "valid_results": valid,
+        "removed_results": removed,
+        "clean_stats": {
+            "valid_count": len(valid),
+            "removed_count": len(removed),
+            "total_count": len(cleaned),
+            "mode": "强过滤：主列表只显示有效5日线"
+        }
+    }
+# ===== end V3.7.3.1 helpers =====
+
+
 @app.route("/")
 def index():
     return send_from_directory(".", "index.html")
@@ -1198,7 +1290,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.3-clean-results-object-fix", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.3.1-strong-clean-filter", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1208,7 +1300,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.7.3-clean-results-object-fix",
+            "version": "3.7.3.1-strong-clean-filter",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1241,7 +1333,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.3-clean-results-object-fix", "summary": build_summary(results, len(symbols), len(errors)), "results": clean_results_v373(results)["results"], "clean_stats": clean_results_v373(results)["clean_stats"], "removed_results": clean_results_v373(results)["removed_results"], "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.3.1-strong-clean-filter", "summary": build_summary(results, len(symbols), len(errors)), "results": clean_results_v3731(results)["results"], "clean_stats": clean_results_v3731(results)["clean_stats"], "removed_results": clean_results_v3731(results)["removed_results"], "errors": errors})
 
 
 
@@ -1835,7 +1927,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.7.3-clean-results-object-fix",
+            "version": "3.7.3.1-strong-clean-filter",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1843,7 +1935,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.3-clean-results-object-fix",
+            "version": "3.7.3.1-strong-clean-filter",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -2184,11 +2276,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.3-clean-results-object-fix",
+            "version": "3.7.3.1-strong-clean-filter",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.3-clean-results-object-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.3.1-strong-clean-filter", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2395,11 +2487,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.3-clean-results-object-fix",
+            "version": "3.7.3.1-strong-clean-filter",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.3-clean-results-object-fix", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.3.1-strong-clean-filter", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2475,16 +2567,16 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.7.3-clean-results-object-fix",
+            "version": "3.7.3.1-strong-clean-filter",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
-            "results": clean_results_v373(results)["results"], "clean_stats": clean_results_v373(results)["clean_stats"], "removed_results": clean_results_v373(results)["removed_results"],
+            "results": clean_results_v3731(results)["results"], "clean_stats": clean_results_v3731(results)["clean_stats"], "removed_results": clean_results_v3731(results)["removed_results"],
         })
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.3-clean-results-object-fix",
+            "version": "3.7.3.1-strong-clean-filter",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -2509,7 +2601,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.3-clean-results-object-fix", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.3.1-strong-clean-filter", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -2517,7 +2609,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.7.3-clean-results-object-fix", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.7.3.1-strong-clean-filter", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -2551,7 +2643,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.3-clean-results-object-fix", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": clean_results_v373(results)["results"], "clean_stats": clean_results_v373(results)["clean_stats"], "removed_results": clean_results_v373(results)["removed_results"], "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.3.1-strong-clean-filter", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": clean_results_v3731(results)["results"], "clean_stats": clean_results_v3731(results)["clean_stats"], "removed_results": clean_results_v3731(results)["removed_results"], "errors": errors})
 
 
 
@@ -2560,7 +2652,7 @@ def api_deep_batch():
 def api_startup_check():
     info = {
         "ok": True,
-        "version": "3.7.3-clean-results-object-fix",
+        "version": "3.7.3.1-strong-clean-filter",
         "flask_app": True,
         "pandas_loaded": pd is not None,
     }
@@ -2577,7 +2669,7 @@ def api_startup_check():
 def api_filter_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.3-clean-results-object-fix",
+        "version": "3.7.3.1-strong-clean-filter",
         "filters": [
             "排除 N/C/U/W 新股或特殊上市标识",
             "排除涨幅超过30%的异常波动票",
@@ -2596,7 +2688,7 @@ def api_filter_status():
 def api_t_discipline():
     return jsonify({
         "ok": True,
-        "version": "3.7.3-clean-results-object-fix",
+        "version": "3.7.3.1-strong-clean-filter",
         "position_principle": "做T是围绕已有底仓赚日内波动差价，不是额外加仓；目标是降低持仓成本，而不是频繁追涨杀跌。",
         "types": {
             "positive_t": "正T：低位买入，高位卖出，适合盘中急跌后修复，但必须有底仓和纪律。",
@@ -2621,7 +2713,7 @@ def api_t_discipline():
 def api_ui_fix_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.3-clean-results-object-fix",
+        "version": "3.7.3.1-strong-clean-filter",
         "fixes": [
             "操作建议 undefined 兜底",
             "仓位 undefined 兜底",
@@ -2642,8 +2734,8 @@ def api_clean_filter_status():
     ]
     return jsonify({
         "ok": True,
-        "version": "3.7.3-clean-results-object-fix",
-        "principle": "主结果默认只展示有效5日线；新股、ST、MA5缺失、异常涨幅自动降级或过滤。",
+        "version": "3.7.3.1-strong-clean-filter",
+        "principle": "主股票卡强过滤：只展示有效5日线；MA5缺失、新股、ST、异常涨幅只进入已过滤。",
         "rules": [
             "修复 [object Object]",
             "默认只展示有效5日线",
@@ -2655,7 +2747,30 @@ def api_clean_filter_status():
             "成交额不足1亿过滤",
             "无效候选最高分限制，不生成交易计划"
         ],
-        "demo": clean_results_v373(demo, default_only_valid=False)
+        "demo": clean_results_v3731(demo, default_only_valid=False)
+    })
+
+
+@app.route("/api/strong_clean_status", methods=["GET"])
+def api_strong_clean_status():
+    demo = [
+        {"symbol":"001399", "name":"N惠科", "pct_chg":315.02, "close":42.00, "ma5":None, "score":95, "turnover":65.92},
+        {"symbol":"300720", "name":"海川智能", "pct_chg":10.41, "close":88.88, "ma5":None, "score":95, "amount":15.1},
+        {"symbol":"300592", "name":"华凯易佰", "pct_chg":12.94, "close":16.93, "ma5":15.31, "score":80, "amount":4.9}
+    ]
+    return jsonify({
+        "ok": True,
+        "version": "3.7.3.1-strong-clean-filter",
+        "fixes": [
+            "右上角标签 undefined 修复",
+            "主股票卡只显示有效5日线",
+            "MA5缺失股票进入已过滤",
+            "N/C/U/W 新股进入已过滤",
+            "ST/*ST进入已过滤",
+            "涨幅异常超过30%进入已过滤",
+            "过滤股票不生成交易计划"
+        ],
+        "demo": clean_results_v3731(demo, default_only_valid=False)
     })
 
 if __name__ == "__main__":
