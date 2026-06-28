@@ -23,7 +23,7 @@ def handle_exception(e):
         "ok": False,
         "error": str(e),
         "type": e.__class__.__name__,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "hint": "后端异常已被捕获。建议降低每批数量，或先用单股分析。",
         "trace_tail": traceback.format_exc()[-1000:],
     }), 500
@@ -1339,7 +1339,7 @@ def index():
 
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.3.4-empty-filter-summary", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
+    return jsonify({"ok": True, "service": "stock-5day-system-v2", "version": "3.7.3.5-force-empty-summary", "time": datetime.now().isoformat(timespec="seconds"), "message": "后端正常，支持财报结果中文解释、交易日状态识别、大盘情绪联动与实盘交易计划"})
 
 
 
@@ -1349,7 +1349,7 @@ def api_real_profile():
         symbol = normalize_symbol(request.args.get("symbol", ""))
         return jsonify({
             "ok": True,
-            "version": "3.7.3.4-empty-filter-summary",
+            "version": "3.7.3.5-force-empty-summary",
             "symbol": symbol,
             "real_data": build_real_data_profile(symbol=symbol, name=symbol, risk_flags=[]),
         })
@@ -1382,7 +1382,7 @@ def api_batch_analyze():
         except Exception as e:
             errors.append({"symbol": sym, "error": str(e)})
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.3.4-empty-filter-summary", "summary": build_summary(results, len(symbols), len(errors)), "results": clean_results_v3734(results)["results"], "clean_stats": clean_results_v3734(results)["clean_stats"], "removed_results": clean_results_v3734(results)["removed_results"], "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.3.5-force-empty-summary", "summary": build_summary(results, len(symbols), len(errors)), "results": clean_results_v3734(results)["results"], "clean_stats": clean_results_v3734(results)["clean_stats"], "removed_results": clean_results_v3734(results)["removed_results"], "errors": errors})
 
 
 
@@ -1976,7 +1976,7 @@ def api_finance_explain():
         rd = fetch_real_data(symbol)
         return jsonify({
             "ok": True,
-            "version": "3.7.3.4-empty-filter-summary",
+            "version": "3.7.3.5-force-empty-summary",
             "symbol": symbol,
             "real_data": rd,
             "finance_explain": explain_finance_result(rd),
@@ -1984,7 +1984,7 @@ def api_finance_explain():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.3.4-empty-filter-summary",
+            "version": "3.7.3.5-force-empty-summary",
             "symbol": symbol,
             "error": str(e),
             "type": e.__class__.__name__,
@@ -2325,11 +2325,11 @@ def api_trading_status():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.3.4-empty-filter-summary",
+            "version": "3.7.3.5-force-empty-summary",
             "trading_status": get_trading_session_status(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.3.4-empty-filter-summary", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.3.5-force-empty-summary", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2536,11 +2536,11 @@ def api_market_sentiment():
     try:
         return jsonify({
             "ok": True,
-            "version": "3.7.3.4-empty-filter-summary",
+            "version": "3.7.3.5-force-empty-summary",
             "market": fetch_market_sentiment(),
         })
     except Exception as e:
-        return jsonify({"ok": False, "version": "3.7.3.4-empty-filter-summary", "error": str(e), "type": e.__class__.__name__}), 200
+        return jsonify({"ok": False, "version": "3.7.3.5-force-empty-summary", "error": str(e), "type": e.__class__.__name__}), 200
 
 
 
@@ -2616,7 +2616,7 @@ def api_theme_stocks():
         ))
         return jsonify({
             "ok": True,
-            "version": "3.7.3.4-empty-filter-summary",
+            "version": "3.7.3.5-force-empty-summary",
             "theme": theme_name,
             "board_code": board_code,
             "summary": build_summary(results, len(stocks), 0),
@@ -2625,7 +2625,7 @@ def api_theme_stocks():
     except Exception as e:
         return jsonify({
             "ok": False,
-            "version": "3.7.3.4-empty-filter-summary",
+            "version": "3.7.3.5-force-empty-summary",
             "theme": theme_name,
             "board_code": board_code,
             "error": str(e),
@@ -2650,7 +2650,7 @@ def api_smart_hot():
     try:
         spot_data = get_spot_candidates(limit=quick_limit, enable_risk_filter=enable_risk_filter, include_risk=include_risk)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.3.4-empty-filter-summary", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
+        return jsonify({"ok": False, "error": str(e), "type": e.__class__.__name__, "where": "eastmoney_spot", "hint": "东方财富实时行情接口暂时不可用。稍后重试，或先用单股分析。", "version": "3.7.3.5-force-empty-summary", "summary": build_summary([], 0, 1), "themes": [], "results": [], "errors": [{"error": str(e)}]}), 200
     candidates = spot_data["candidates"]
     quick_results = [quick_score_from_spot(x, enable_risk_filter=enable_risk_filter) for x in candidates]
     quick_results.sort(key=lambda x: (x.get("rank", 9), -(x.get("quote", {}).get("pct_chg") or 0), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("amount") or 0)))
@@ -2658,7 +2658,7 @@ def api_smart_hot():
     summary["source_count"] = spot_data.get("source_count", 0)
     summary["candidate_count"] = len(candidates)
     summary["deep_analyzed"] = 0
-    return jsonify({"ok": True, "version": "3.7.3.4-empty-filter-summary", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
+    return jsonify({"ok": True, "version": "3.7.3.5-force-empty-summary", "mode": "risk_filter_quick_first", "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "summary": summary, "themes": try_fetch_theme_board(limit=20), "results": quick_results[:quick_limit], "errors": [{"info": x} for x in spot_data.get("errors", [])]})
 
 
 @app.route("/api/deep_batch", methods=["POST"])
@@ -2692,7 +2692,7 @@ def api_deep_batch():
     next_offset = offset + size
     done = next_offset >= len(symbols)
     results.sort(key=lambda x: (x.get("rank", 9), -int(x.get("smart_score", 0)), -(x.get("quote", {}).get("pct_chg") or 0)))
-    return jsonify({"ok": True, "version": "3.7.3.4-empty-filter-summary", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": clean_results_v3734(results)["results"], "clean_stats": clean_results_v3734(results)["clean_stats"], "removed_results": clean_results_v3734(results)["removed_results"], "errors": errors})
+    return jsonify({"ok": True, "version": "3.7.3.5-force-empty-summary", "offset": offset, "size": size, "next_offset": next_offset, "done": done, "total": len(symbols), "summary": build_summary(results, len(batch), len(errors)), "results": clean_results_v3734(results)["results"], "clean_stats": clean_results_v3734(results)["clean_stats"], "removed_results": clean_results_v3734(results)["removed_results"], "errors": errors})
 
 
 
@@ -2701,7 +2701,7 @@ def api_deep_batch():
 def api_startup_check():
     info = {
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "flask_app": True,
         "pandas_loaded": pd is not None,
     }
@@ -2718,7 +2718,7 @@ def api_startup_check():
 def api_filter_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "filters": [
             "排除 N/C/U/W 新股或特殊上市标识",
             "排除涨幅超过30%的异常波动票",
@@ -2737,7 +2737,7 @@ def api_filter_status():
 def api_t_discipline():
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "position_principle": "做T是围绕已有底仓赚日内波动差价，不是额外加仓；目标是降低持仓成本，而不是频繁追涨杀跌。",
         "types": {
             "positive_t": "正T：低位买入，高位卖出，适合盘中急跌后修复，但必须有底仓和纪律。",
@@ -2762,7 +2762,7 @@ def api_t_discipline():
 def api_ui_fix_status():
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "fixes": [
             "操作建议 undefined 兜底",
             "仓位 undefined 兜底",
@@ -2783,7 +2783,7 @@ def api_clean_filter_status():
     ]
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "principle": "最终卡片过滤：全部/主列表只展示有效5日线；右上角标签不再显示 undefined。",
         "rules": [
             "修复 [object Object]",
@@ -2809,7 +2809,7 @@ def api_strong_clean_status():
     ]
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "fixes": [
             "右上角标签 undefined 修复",
             "主股票卡只显示有效5日线",
@@ -2833,7 +2833,7 @@ def api_final_card_filter_status():
     d = clean_results_v3734(demo, default_only_valid=True)
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "fixes": [
             "右上角标签 undefined 彻底修复",
             "全部按钮默认只显示有效5日线",
@@ -2855,7 +2855,7 @@ def api_dom_final_clean_status():
     ]
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "fixes": [
             "DOM层最终兜底清理",
             "主列表自动隐藏 MA5 为 - 的卡片",
@@ -2879,7 +2879,7 @@ def api_empty_filter_summary_status():
     ]
     return jsonify({
         "ok": True,
-        "version": "3.7.3.4-empty-filter-summary",
+        "version": "3.7.3.5-force-empty-summary",
         "fixes": [
             "主股票卡为空时显示明确提示",
             "显示今日过滤数量",
@@ -2889,6 +2889,22 @@ def api_empty_filter_summary_status():
             "保留 DOM 最终净化"
         ],
         "demo": clean_results_v3734(demo, default_only_valid=True)
+    })
+
+
+@app.route("/api/force_empty_summary_status", methods=["GET"])
+def api_force_empty_summary_status():
+    return jsonify({
+        "ok": True,
+        "version": "3.7.3.5-force-empty-summary",
+        "fixes": [
+            "空结果提示不再依赖股票卡元素",
+            "主列表没有有效卡片时强制显示空结果说明",
+            "过滤原因汇总可从已过滤数据、DOM卡片或本地统计中读取",
+            "滚动到底部也能看到空结果提示",
+            "观察池和数据管理区域不再误导用户以为系统坏了"
+        ],
+        "empty_message": "今日暂无有效5日线股票，系统已过滤 MA5缺失/新股/ST/异常涨幅股票。可点击查看已过滤复核，或下一个交易日重新筛选。"
     })
 
 if __name__ == "__main__":
