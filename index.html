@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>5日线强势股交易纪律系统 V3.7.3.5</title>
+<title>5日线强势股交易纪律系统 V3.7.3.6</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Arial,sans-serif;background:#0f172a;color:#e5e7eb}.container{max-width:1160px;margin:0 auto;padding:16px}.header{background:linear-gradient(135deg,#172554,#111827);border:1px solid rgba(148,163,184,.25);border-radius:18px;padding:20px;margin-bottom:16px}h1{margin:0 0 8px;font-size:24px;color:#fff}.warn{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.35);color:#fde68a;font-size:13px;line-height:1.6}.card{background:#111827;border:1px solid rgba(148,163,184,.22);border-radius:16px;padding:16px;margin-bottom:16px}label{display:block;margin:12px 0 6px;color:#cbd5e1;font-size:14px}input,select,textarea{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(148,163,184,.28);background:#020617;color:#f8fafc;font-size:15px;outline:none}textarea{min-height:132px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}.btns,.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}button{border:0;border-radius:12px;padding:11px 13px;color:#fff;background:#2563eb;font-weight:800;cursor:pointer;font-size:14px}.green{background:#16a34a}.gray{background:#475569}.red{background:#dc2626}.purple{background:#7c3aed}.orange{background:#ea580c}.result{margin-top:14px;padding:14px;border-radius:14px;background:#020617;border:1px solid rgba(148,163,184,.24);line-height:1.75;font-size:14px;white-space:pre-wrap;overflow:auto}.score{font-size:42px;font-weight:900;margin:6px 0}.good{color:#4ade80}.mid{color:#facc15}.bad{color:#fb7185}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;margin:2px 4px 6px 0;background:rgba(59,130,246,.15);color:#bfdbfe;border:1px solid rgba(59,130,246,.28)}.riskpill{background:rgba(248,113,113,.13);color:#fecaca;border-color:rgba(248,113,113,.3)}.techpill{background:rgba(168,85,247,.16);color:#ddd6fe;border-color:rgba(168,85,247,.35)}.safepill{background:rgba(34,197,94,.15);color:#bbf7d0;border-color:rgba(34,197,94,.35)}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}}.stat{background:#020617;border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:12px}.stat b{display:block;font-size:22px;margin-bottom:4px}.stat span{color:#94a3b8;font-size:12px}.tabs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}.tab,.filterbar button{background:#1e293b;color:#cbd5e1}.tab.active,.filterbar button.active{background:#2563eb;color:#fff}.hide{display:none}.footer{text-align:center;color:#64748b;padding:20px 0 8px;font-size:12px}.mobile-cards{display:grid;grid-template-columns:1fr;gap:12px}.stock-card{background:#020617;border:1px solid rgba(148,163,184,.24);border-radius:16px;padding:14px}.stock-card.quality_safe_near{border-color:rgba(34,197,94,1);box-shadow:0 0 0 2px rgba(34,197,94,.35)}.stock-card.safe_near{border-color:rgba(34,197,94,.95);box-shadow:0 0 0 1px rgba(34,197,94,.25)}.stock-card.near{border-color:rgba(74,222,128,.75)}.stock-card.focus{border-color:rgba(56,189,248,.65)}.stock-card.far,.stock-card.watch{border-color:rgba(250,204,21,.5)}.stock-card.risk,.stock-card.riskfilter{border-color:rgba(251,113,133,.65);opacity:.82}.stock-card.ignore{opacity:.72}.stock-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.stock-title{font-size:22px;font-weight:900}.stock-name{font-size:13px;color:#94a3b8;margin-top:2px}.rank{font-size:13px;color:#94a3b8}.level{font-weight:800;padding:5px 8px;border-radius:999px;font-size:12px;background:#1e293b}.quality_safe_near .level{background:rgba(34,197,94,.35);color:#dcfce7}.safe_near .level{background:rgba(34,197,94,.28);color:#dcfce7}.near .level{background:rgba(34,197,94,.2);color:#bbf7d0}.focus .level{background:rgba(56,189,248,.18);color:#bae6fd}.far .level,.watch .level{background:rgba(250,204,21,.15);color:#fef08a}.risk .level,.riskfilter .level{background:rgba(248,113,113,.15);color:#fecaca}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.metric{background:rgba(15,23,42,.75);border:1px solid rgba(148,163,184,.12);border-radius:12px;padding:10px}.metric span{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px}.metric b{font-size:18px}.advice-box{border-top:1px solid rgba(148,163,184,.18);padding-top:10px;margin-top:10px;line-height:1.65}.card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.card-actions button{padding:8px 10px;font-size:12px}.small{font-size:12px;color:#94a3b8;line-height:1.6}.theme-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:700px){.theme-list{grid-template-columns:1fr}}.theme-item{background:#020617;border:1px solid rgba(148,163,184,.18);border-radius:12px;padding:10px;cursor:pointer}.theme-item:active{transform:scale(.98)}.theme-item.selected{border-color:rgba(34,197,94,.8);box-shadow:0 0 0 1px rgba(34,197,94,.25)}.progress{height:10px;background:#020617;border-radius:999px;overflow:hidden;border:1px solid rgba(148,163,184,.2);margin-top:12px}.bar{height:100%;width:0%;background:#2563eb;transition:.3s}.running{outline:2px solid rgba(34,197,94,.45)}.switchrow{display:flex;gap:8px;align-items:center;margin-top:10px;color:#cbd5e1;font-size:13px}.switchrow input{width:auto}.planbox{border-top:1px solid rgba(34,197,94,.28);margin-top:10px;padding-top:10px;line-height:1.7;color:#dcfce7}.planbox b{color:#bbf7d0}
 
@@ -19,7 +19,7 @@
 .bad-box{border-color:rgba(248,113,113,.45)}
 
 
-/* ===== V3.7.3.5 mobile UI optimization ===== */
+/* ===== V3.7.3.6 mobile UI optimization ===== */
 .compact-card{padding:14px!important}
 .stock-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
 .stock-code{font-size:34px;font-weight:900;line-height:1.05}
@@ -62,7 +62,7 @@
 }
 
 
-/* ===== V3.7.3.5 valid MA5 filter UI ===== */
+/* ===== V3.7.3.6 valid MA5 filter UI ===== */
 .badge-good{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(34,197,94,.14);color:#86efac;border:1px solid rgba(34,197,94,.35);font-size:13px;font-weight:700}
 .badge-bad{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(248,113,113,.12);color:#fca5a5;border:1px solid rgba(248,113,113,.35);font-size:13px;font-weight:700}
 .risk-filter-box{margin:12px 0;padding:12px;border-radius:14px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.35);color:#fecaca;line-height:1.6}
@@ -71,31 +71,31 @@
 .data-quality-line{margin:8px 0;color:#94a3b8;font-size:14px}
 
 
-/* ===== V3.7.3.5 T discipline UI ===== */
+/* ===== V3.7.3.6 T discipline UI ===== */
 .t-box{margin:12px 0;padding:14px;border-radius:16px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.35);line-height:1.7}
 .t-box h3{margin:0 0 8px;font-size:22px}.t-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.t-grid div{background:#0f172a;border:1px solid rgba(148,163,184,.18);border-radius:12px;padding:12px}.t-grid b{display:block;color:#bfdbfe;margin-bottom:6px}.t-signal{margin:10px 0;padding:12px;border-radius:14px;background:#020617;border:1px solid rgba(148,163,184,.2)}.t-signal b{color:#86efac}.t-risk{margin-top:10px;padding:12px;border-radius:14px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.35);color:#fecaca}.t-status{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(250,204,21,.12);color:#fde68a;border:1px solid rgba(250,204,21,.28);font-weight:800}
 
 
-/* ===== V3.7.3.5 clean results UI ===== */
+/* ===== V3.7.3.6 clean results UI ===== */
 .clean-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0}
 .clean-stats div{background:#020617;border:1px solid rgba(34,197,94,.25);border-radius:14px;padding:12px}
 .clean-stats b{display:block;font-size:28px;color:#86efac}
 .clean-stats span{font-size:13px;color:#94a3b8}
 
 
-/* ===== V3.7.3.5 badge fix ===== */
+/* ===== V3.7.3.6 badge fix ===== */
 .badge:empty::after,.tag:empty::after{content:"候选"}
 
 
-/* ===== V3.7.3.5 final badge fallback ===== */
+/* ===== V3.7.3.6 final badge fallback ===== */
 .badge:empty::after,.tag:empty::after,.stock-badge:empty::after,.card-badge:empty::after{content:"有效5日线"}
 
 
-/* ===== V3.7.3.5 DOM clean UI ===== */
+/* ===== V3.7.3.6 DOM clean UI ===== */
 #domCleanStatV3733{font-size:13px;color:#86efac;margin:8px 0 12px 0;padding:8px 10px;border:1px solid rgba(34,197,94,.25);border-radius:10px;background:rgba(22,163,74,.08)}
 
 
-/* ===== V3.7.3.5 empty filter summary ===== */
+/* ===== V3.7.3.6 empty filter summary ===== */
 .empty-filter-box-v3734{
   margin:14px 0;
   padding:18px;
@@ -181,11 +181,101 @@
   color:#fef3c7;
 }
 
+
+/* ===== V3.7.3.6 watchpool-before empty notice ===== */
+#forceEmptyBeforeWatchpoolV3736{
+  margin:18px 0;
+}
+.force-empty-box-v3736{
+  padding:18px;
+  border:1px solid rgba(234,179,8,.55);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(234,179,8,.14),rgba(15,23,42,.96));
+  box-shadow:0 0 0 1px rgba(234,179,8,.08) inset;
+}
+.force-empty-title-v3736{
+  font-size:26px;
+  line-height:1.25;
+  font-weight:900;
+  color:#fde68a;
+  margin-bottom:10px;
+}
+.force-empty-desc-v3736{
+  color:#e5e7eb;
+  font-size:16px;
+  line-height:1.75;
+  margin-bottom:14px;
+}
+.force-empty-grid-v3736{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:10px;
+  margin:12px 0;
+}
+.force-empty-grid-v3736 div{
+  background:#020617;
+  border:1px solid rgba(148,163,184,.28);
+  border-radius:14px;
+  padding:12px 8px;
+}
+.force-empty-grid-v3736 b{
+  display:block;
+  font-size:26px;
+  color:#86efac;
+}
+.force-empty-grid-v3736 span{
+  display:block;
+  font-size:12px;
+  color:#94a3b8;
+}
+.force-empty-reason-v3736{
+  margin-top:12px;
+  padding:12px;
+  border:1px solid rgba(248,113,113,.38);
+  border-radius:14px;
+  background:#020617;
+}
+.force-empty-reason-title-v3736{
+  color:#fecaca;
+  font-weight:900;
+  margin-bottom:8px;
+}
+.force-empty-row-v3736{
+  display:flex;
+  justify-content:space-between;
+  padding:8px 0;
+  border-bottom:1px dashed rgba(148,163,184,.2);
+  color:#e5e7eb;
+}
+.force-empty-row-v3736:last-child{border-bottom:none}
+.force-empty-row-v3736 b{color:#fca5a5}
+.force-empty-advice-v3736{
+  margin-top:12px;
+  color:#fef3c7;
+  font-size:14px;
+  line-height:1.65;
+}
+.force-empty-actions-v3736{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:14px;
+}
+.force-empty-actions-v3736 button{
+  border:0;
+  border-radius:13px;
+  padding:11px 15px;
+  color:white;
+  font-weight:900;
+  background:#2563eb;
+}
+.force-empty-actions-v3736 button:first-child{background:#dc2626}
+
 </style>
 </head>
 <body><div class="container">
-<div class="header"><h1>5日线强势股交易纪律系统 V3.7.3.5</h1><p>主结果净化版：默认只展示有效5日线结果；新股、ST、MA5缺失、异常涨幅自动过滤或降级。</p><div class="warn">风险提示：本系统是交易纪律辅助工具，不是荐股软件，不保证盈利。财报中文解释只用于辅助理解，不代表投资建议；实盘前必须人工核对原始公告、行情和财报。</div></div>
-<div class="footer-risk"><b>手机使用建议：</b>先看“今日智能筛选”，默认只看“有效5日线”；若暂无有效5日线，会强制显示过滤原因汇总；可查看已过滤复核，不建议强行交易。</div>
+<div class="header"><h1>5日线强势股交易纪律系统 V3.7.3.6</h1><p>主结果净化版：默认只展示有效5日线结果；新股、ST、MA5缺失、异常涨幅自动过滤或降级。</p><div class="warn">风险提示：本系统是交易纪律辅助工具，不是荐股软件，不保证盈利。财报中文解释只用于辅助理解，不代表投资建议；实盘前必须人工核对原始公告、行情和财报。</div></div>
+<div class="footer-risk"><b>手机使用建议：</b>先看“今日智能筛选”，默认只看“有效5日线”；若暂无有效5日线，会在观察池上方固定显示过滤原因汇总；可查看已过滤复核，不建议强行交易。</div>
 <div class="tabs"><button id="tabSmart" class="tab active" onclick="showTab('smart')">今日智能筛选</button><button id="tabSingle" class="tab" onclick="showTab('single')">单股分析</button><button id="tabBatch" class="tab" onclick="showTab('batch')">批量扫描</button><button id="tabRules" class="tab" onclick="showTab('rules')">交易规则</button><button id="tabT" class="tab" onclick="showTab('tdiscipline')">做T纪律</button></div>
 
 <div id="smartPanel">
@@ -222,7 +312,7 @@
 第四：下午2:50跌破5日线减一半仓。
 第五：跌破5日线连续三天没有重新站上，果断卖掉。
 
-V3.7.3.5 风险过滤：
+V3.7.3.6 风险过滤：
 1. ST / *ST 默认过滤。
 2. 北交所默认过滤。
 3. 688开头科创板默认过滤。
@@ -231,7 +321,7 @@ V3.7.3.5 风险过滤：
 6. 低价股标记风险。
 7. “安全接近买点”要求：站上5日线、距离5日线0~3%、成交额大于2亿、换手率3%~20%、无主要风险标签。
 
-V3.7.3.5 实盘交易计划：
+V3.7.3.6 实盘交易计划：
 1. 自动生成观察价：5日线附近。
 2. 自动生成半仓参考价：5日线附近小幅站稳。
 3. 自动生成回踩接回价：回踩5日线不破后重新拉起。
@@ -258,7 +348,7 @@ V3.7.3.5 实盘交易计划：
 </div>
 
 <div class="card"><h2>数据管理</h2><div class="btns"><button class="gray" onclick="health()">检测后端</button><button class="gray" onclick="testTradingStatus()">测试交易状态</button><button class="gray" onclick="testMarket()">测试大盘情绪</button><button class="gray" onclick="testRealData()">测试财报解释</button><button class="gray" onclick="testTDiscipline()">测试做T纪律</button><button class="red" onclick="clearAll()">清空观察池</button></div><div id="healthResult" class="result">点击检测后端。</div></div>
-<div class="footer">5日线强势股交易纪律系统 V3.7.3.5 · 实盘交易计划版</div></div>
+<div class="footer">5日线强势股交易纪律系统 V3.7.3.6 · 实盘交易计划版</div></div>
 
 <script>
 let lastAnalysis=null,lastBatchResults=[],lastHotResults=[],allHotResultsBackup=[],hotFilter="all",deepOffset=0,currentTheme=null;
@@ -390,9 +480,9 @@ function renderReviewCopyBox(){
 
 
 
-// ===== V3.7.3.5 UI safe helpers =====
+// ===== V3.7.3.6 UI safe helpers =====
 
-// ===== V3.7.3.5 object display + clean result helpers =====
+// ===== V3.7.3.6 object display + clean result helpers =====
 function textFromAny(v, fallback){
   if(v===undefined || v===null || v==="" || v==="undefined" || v==="null" || v==="[object Object]"){
     return fallback || "-";
@@ -488,7 +578,7 @@ function renderCleanStats(d){
     <div><b>${st.total_count||0}</b><span>总候选</span></div>
   </div>`;
 }
-// ===== end V3.7.3.5 helpers =====
+// ===== end V3.7.3.6 helpers =====
 
 function safeText(v, fallback){
   if(v===undefined || v===null || v==="" || v==="undefined" || v==="null"){
@@ -511,7 +601,7 @@ function renderRiskFilterOnce(x){
   const rs=(x.invalid_reasons||[]).join("、") || x.risk_text || "数据不足或异常";
   return `<div class="risk-filter-box"><b>风险过滤：</b>${rs}<br>结论：不参与5日线交易计划。</div>`;
 }
-// ===== end V3.7.3.5 UI safe helpers =====
+// ===== end V3.7.3.6 UI safe helpers =====
 
 function validBadge(x){
   if(!x){return ""}
@@ -864,7 +954,7 @@ async function testUiFixStatus(){
 }
 
 
-// ===== V3.7.3.5 stronger front clean =====
+// ===== V3.7.3.6 stronger front clean =====
 function badgeTextV3731(x){
   const raw=x.badge||x.tag||x.type||x.label||"";
   const txt=textFromAny(raw,"").trim();
@@ -931,10 +1021,10 @@ function testStrongCleanStatus(){
     healthResult.textContent="强过滤检测失败：\n"+e.message;
   });
 }
-// ===== end V3.7.3.5 =====
+// ===== end V3.7.3.6 =====
 
 
-// ===== V3.7.3.5 final card and filter override =====
+// ===== V3.7.3.6 final card and filter override =====
 function finalBadgeText(x){
   const raw = x && (x.badge_text || x.badge || x.tag || x.type || x.label || x.status);
   const t = textFromAny(raw, "").trim();
@@ -1040,10 +1130,10 @@ function testFinalCardFilterStatus(){
     healthResult.textContent="最终卡片过滤检测失败：\n"+e.message;
   });
 }
-// ===== end V3.7.3.5 =====
+// ===== end V3.7.3.6 =====
 
 
-// ===== V3.7.3.5 DOM final clean patch =====
+// ===== V3.7.3.6 DOM final clean patch =====
 // 说明：这是最终兜底层。即使旧渲染函数把风险票渲染出来，也会在页面上自动隐藏。
 window.__showingFilteredStocks = false;
 
@@ -1195,10 +1285,10 @@ function testDomFinalCleanStatus(){
     healthResult.textContent="DOM最终净化检测失败：\n"+e.message;
   });
 }
-// ===== end V3.7.3.5 =====
+// ===== end V3.7.3.6 =====
 
 
-// ===== V3.7.3.5 empty result + filter summary UI =====
+// ===== V3.7.3.6 empty result + filter summary UI =====
 window.lastFilterSummaryV3734 = null;
 
 function collectDomFilterSummaryV3734(){
@@ -1353,10 +1443,10 @@ function testEmptyFilterSummaryStatus(){
 setTimeout(()=>{finalDomCleanV3733(); showEmptySummaryIfNeededV3734();}, 500);
 setTimeout(()=>{finalDomCleanV3733(); showEmptySummaryIfNeededV3734();}, 1500);
 setInterval(()=>{showEmptySummaryIfNeededV3734(); updateSummaryStatV3734();}, 2000);
-// ===== end V3.7.3.5 =====
+// ===== end V3.7.3.6 =====
 
 
-// ===== V3.7.3.5 force empty summary display =====
+// ===== V3.7.3.6 force empty summary display =====
 window.lastHadScreeningActionV3735 = false;
 
 function getStockCardsSectionV3735(){
@@ -1484,7 +1574,181 @@ setTimeout(()=>{patchScreeningButtonsV3735(); finalDomCleanV3733?.(); forceRende
 setTimeout(()=>{patchScreeningButtonsV3735(); finalDomCleanV3733?.(); forceRenderEmptySummaryV3735();}, 1800);
 setTimeout(()=>{patchScreeningButtonsV3735(); finalDomCleanV3733?.(); forceRenderEmptySummaryV3735();}, 3500);
 setInterval(()=>{patchScreeningButtonsV3735(); forceRenderEmptySummaryV3735();}, 2500);
-// ===== end V3.7.3.5 =====
+// ===== end V3.7.3.6 =====
+
+
+// ===== V3.7.3.6 force notice before watchpool =====
+window.__stock5LastScreenedV3736 = false;
+
+function findPanelByHeadingTextV3736(keyword){
+  const all = Array.from(document.querySelectorAll("h1,h2,h3,h4,div,section"));
+  const h = all.find(el => {
+    const t = (el.textContent || "").trim();
+    return t === keyword || t.includes(keyword);
+  });
+  if(!h) return null;
+  let p = h;
+  for(let i=0;i<8 && p;i++){
+    const txt = (p.textContent || "");
+    if(txt.includes(keyword) && p.children && p.children.length >= 1){
+      if(p.className && String(p.className).match(/section|panel|card|box|block|container/i)) return p;
+    }
+    p = p.parentElement;
+  }
+  return h.closest("section, .section, .panel, .card") || h.parentElement;
+}
+
+function findWatchPoolPanelV3736(){
+  return findPanelByHeadingTextV3736("观察池");
+}
+
+function countVisibleMainStockCardsV3736(){
+  const cards = (typeof possibleStockCardsV3733 === "function") ? possibleStockCardsV3733() : [];
+  return cards.filter(c=>{
+    if(!c || c.id === "emptyFilterBoxV3734" || c.id === "forceEmptyBeforeWatchpoolV3736") return false;
+    const txt = (c.innerText || "");
+    if(!/排名\s*\d+/.test(txt) || !/涨幅/.test(txt) || !/智能分/.test(txt)) return false;
+    if(c.style.display === "none") return false;
+    if(c.offsetParent === null) return false;
+    if(typeof cardIsInvalidForMainV3733 === "function" && cardIsInvalidForMainV3733(c)) return false;
+    return true;
+  }).length;
+}
+
+function guessFilteredCountV3736(){
+  let n = 0;
+  try{
+    if(Array.isArray(window.removedStocks)) n = Math.max(n, window.removedStocks.length);
+    if(Array.isArray(window.allCleanStocks) && typeof isValidMainStockV3732 === "function"){
+      n = Math.max(n, window.allCleanStocks.filter(x=>!isValidMainStockV3732(x)).length);
+    }
+    if(typeof possibleStockCardsV3733 === "function"){
+      const cards = possibleStockCardsV3733();
+      const bad = cards.filter(c => {
+        const txt = c.innerText || "";
+        return /MA5缺失|MA5缺失或无效|收盘\s*\/\s*MA5[\s\S]{0,80}\/\s*-|距5日线[\s\S]{0,30}-\s*%|新股|特殊上市标识|ST|涨幅\s*(3[1-9]|[4-9]\d|[1-9]\d{2,})/.test(txt);
+      }).length;
+      n = Math.max(n, bad);
+    }
+  }catch(e){}
+  return n;
+}
+
+function buildForceEmptyNoticeV3736(){
+  let summary = {};
+  try{
+    summary = (typeof getReasonSummaryV3735 === "function") ? getReasonSummaryV3735() : {};
+  }catch(e){ summary = {}; }
+
+  const removed = Math.max(summary.removed_count || 0, guessFilteredCountV3736());
+  const total = Math.max(summary.total_count || 0, removed);
+  let reasons = summary.reason_summary || {};
+
+  if(!Object.keys(reasons).length){
+    reasons = {
+      "MA5缺失或无效": removed || 0,
+      "新股/ST/异常涨幅": 0
+    };
+  }
+
+  const rows = Object.entries(reasons).map(([k,v])=>{
+    return `<div class="force-empty-row-v3736"><span>${k}</span><b>${v}只</b></div>`;
+  }).join("");
+
+  return `
+    <div class="force-empty-box-v3736">
+      <div class="force-empty-title-v3736">今日暂无有效5日线股票</div>
+      <div class="force-empty-desc-v3736">
+        系统已经完成筛选，但当前没有符合“有效5日线”的股票。
+        这不是系统故障，而是候选股被纪律规则过滤了。
+      </div>
+      <div class="force-empty-grid-v3736">
+        <div><b>0</b><span>有效5日线</span></div>
+        <div><b>${removed}</b><span>已过滤/降级</span></div>
+        <div><b>${total}</b><span>总候选参考</span></div>
+      </div>
+      <div class="force-empty-reason-v3736">
+        <div class="force-empty-reason-title-v3736">过滤原因汇总</div>
+        ${rows}
+      </div>
+      <div class="force-empty-advice-v3736">
+        建议：今天没有合格5日线时，不要为了交易而交易。可以查看已过滤复核，但不建议强行买入。
+      </div>
+      <div class="force-empty-actions-v3736">
+        <button onclick="window.__showingFilteredStocks=true; if(typeof showFilteredDomV3733==='function')showFilteredDomV3733(); this.closest('.force-empty-box-v3736').scrollIntoView({behavior:'smooth'});">查看已过滤</button>
+        <button onclick="location.href=location.pathname+'?v=3736&t='+Date.now()">重新筛选</button>
+      </div>
+    </div>
+  `;
+}
+
+function shouldShowForceEmptyV3736(){
+  // 只要没有有效股票卡，就显示；这比前几版更强硬
+  const visible = countVisibleMainStockCardsV3736();
+  if(visible > 0) return false;
+
+  // 页面已有题材/观察池/数据管理，说明页面正常加载；此时显示空提示
+  const bodyText = document.body ? document.body.innerText : "";
+  if(/观察池|数据管理|热门题材|今日智能筛选/.test(bodyText)) return true;
+  return false;
+}
+
+function forceInsertBeforeWatchpoolV3736(){
+  const old = document.getElementById("forceEmptyBeforeWatchpoolV3736");
+
+  if(!shouldShowForceEmptyV3736()){
+    if(old) old.style.display = "none";
+    return;
+  }
+
+  const watch = findWatchPoolPanelV3736();
+  if(!watch || !watch.parentElement) return;
+
+  let box = old;
+  if(!box){
+    box = document.createElement("div");
+    box.id = "forceEmptyBeforeWatchpoolV3736";
+    watch.parentElement.insertBefore(box, watch);
+  }
+  box.innerHTML = buildForceEmptyNoticeV3736();
+  box.style.display = "block";
+}
+
+function patchAllActionButtonsV3736(){
+  document.querySelectorAll("button").forEach(btn=>{
+    const text = (btn.textContent || "").trim();
+    if(/今日智能筛选|手动分析一批|自动连续分析|有效5日线|全部|重新筛选|停止自动分析/.test(text)){
+      if(btn.dataset.v3736patched) return;
+      btn.dataset.v3736patched = "1";
+      const oldClick = btn.onclick;
+      btn.onclick = function(e){
+        let r;
+        try{
+          if(typeof oldClick === "function") r = oldClick.call(this,e);
+        }catch(err){ console.warn(err); }
+        setTimeout(()=>{ if(typeof finalDomCleanV3733==="function") finalDomCleanV3733(); forceInsertBeforeWatchpoolV3736(); }, 300);
+        setTimeout(()=>{ if(typeof finalDomCleanV3733==="function") finalDomCleanV3733(); forceInsertBeforeWatchpoolV3736(); }, 1200);
+        setTimeout(()=>{ if(typeof finalDomCleanV3733==="function") finalDomCleanV3733(); forceInsertBeforeWatchpoolV3736(); }, 3000);
+        return r;
+      };
+    }
+  });
+}
+
+function testWatchpoolEmptyStatus(){
+  healthResult.textContent="正在检测观察池前空提示...";
+  fetch(apiBase()+"/api/watchpool_empty_status").then(safeJsonResponse).then(d=>{
+    healthResult.textContent=JSON.stringify(d,null,2);
+  }).catch(e=>{
+    healthResult.textContent="观察池前空提示检测失败：\n"+e.message;
+  });
+}
+
+setTimeout(()=>{patchAllActionButtonsV3736(); forceInsertBeforeWatchpoolV3736();}, 500);
+setTimeout(()=>{patchAllActionButtonsV3736(); forceInsertBeforeWatchpoolV3736();}, 1500);
+setTimeout(()=>{patchAllActionButtonsV3736(); forceInsertBeforeWatchpoolV3736();}, 3500);
+setInterval(()=>{patchAllActionButtonsV3736(); forceInsertBeforeWatchpoolV3736();}, 2500);
+// ===== end V3.7.3.6 =====
 
 </script><div class="footer-risk">风险提示：本系统是复盘和交易纪律辅助工具，不是荐股软件，不承诺收益。所有行情、财报、题材数据仅供参考，实盘前必须人工核对。</div>
 </body></html>
