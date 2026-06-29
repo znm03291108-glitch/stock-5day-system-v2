@@ -3,95 +3,238 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>短线强势股纪律辅助 V3.7.9</title>
+<title>短线强势股纪律辅助 V3.7.9.1</title>
 <style>
 :root{
-  --bg:#07111f;--card:#101a2b;--card2:#0c1525;--line:#24324a;
-  --text:#e8eefc;--muted:#8fa0bd;--blue:#2f7cff;--green:#21c77a;
-  --red:#ff5b6e;--yellow:#ffd166;--orange:#ff9f1c;--purple:#9b5cff;
+  --bg:#07111f;
+  --card:#101a2b;
+  --card2:#0c1525;
+  --line:#24324a;
+  --text:#e8eefc;
+  --muted:#8fa0bd;
+  --blue:#2f7cff;
+  --green:#21c77a;
+  --red:#ff5b6e;
+  --yellow:#ffd166;
+  --orange:#ff9f1c;
+  --purple:#9b5cff;
 }
 *{box-sizing:border-box}
 body{
-  margin:0;background:linear-gradient(180deg,#050b15,#0a1323);color:var(--text);
+  margin:0;
+  background:linear-gradient(180deg,#050b15,#0a1323);
+  color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Microsoft YaHei",Arial,sans-serif;
 }
-.app{max-width:590px;margin:0 auto;padding:14px}
-.header{
-  position:sticky;top:0;z-index:10;background:rgba(7,17,31,.96);
-  backdrop-filter:blur(8px);padding:12px 0;border-bottom:1px solid var(--line)
+.app{
+  max-width:590px;
+  margin:0 auto;
+  padding:14px;
 }
-.title{font-size:20px;font-weight:900}
-.sub{font-size:12px;color:var(--muted);margin-top:5px}
+.header{
+  position:sticky;
+  top:0;
+  z-index:10;
+  background:rgba(7,17,31,.96);
+  backdrop-filter:blur(8px);
+  padding:12px 0;
+  border-bottom:1px solid var(--line);
+}
+.title{
+  font-size:20px;
+  font-weight:900;
+}
+.sub{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:5px;
+}
 .badge{
-  display:inline-block;padding:3px 8px;border-radius:99px;font-size:11px;
-  background:#13233b;color:#9fc2ff;margin-left:6px
+  display:inline-block;
+  padding:3px 8px;
+  border-radius:99px;
+  font-size:11px;
+  background:#13233b;
+  color:#9fc2ff;
+  margin-left:6px;
 }
 .card,details{
   background:linear-gradient(180deg,var(--card),var(--card2));
-  border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0;
-  box-shadow:0 8px 26px rgba(0,0,0,.22)
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+  margin:12px 0;
+  box-shadow:0 8px 26px rgba(0,0,0,.22);
 }
 details{background:#081426}
-summary{cursor:pointer;font-weight:900;color:#dce8ff}
+summary{
+  cursor:pointer;
+  font-weight:900;
+  color:#dce8ff;
+}
 .section-title{
-  font-size:16px;font-weight:900;margin-bottom:10px;
-  display:flex;align-items:center;justify-content:space-between
+  font-size:16px;
+  font-weight:900;
+  margin-bottom:10px;
 }
-.tip{color:var(--muted);font-size:12px;line-height:1.7}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tip{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.7;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+}
+.grid3{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+}
 .metric{
-  background:#07111f;border:1px solid var(--line);border-radius:13px;padding:11px
+  background:#07111f;
+  border:1px solid var(--line);
+  border-radius:13px;
+  padding:11px;
 }
-.metric .num{font-size:20px;font-weight:900}
-.metric .label{font-size:12px;color:var(--muted);margin-top:4px}
+.metric .num{
+  font-size:20px;
+  font-weight:900;
+}
+.metric .label{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:4px;
+}
 .status{
-  padding:10px;border-radius:12px;font-size:13px;line-height:1.6;
-  border:1px solid var(--line);background:#081426
+  padding:10px;
+  border-radius:12px;
+  font-size:13px;
+  line-height:1.6;
+  border:1px solid var(--line);
+  background:#081426;
+  word-break:break-all;
 }
 .status.good{border-color:rgba(33,199,122,.45);color:#b6ffd8}
 .status.warn{border-color:rgba(255,209,102,.45);color:#ffe8a3}
 .status.bad{border-color:rgba(255,91,110,.45);color:#ffbdc6}
 input,textarea,select{
-  width:100%;background:#07111f;border:1px solid var(--line);color:var(--text);
-  border-radius:12px;padding:12px;outline:none;font-size:14px
+  width:100%;
+  background:#07111f;
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:12px;
+  padding:12px;
+  outline:none;
+  font-size:14px;
 }
-textarea{min-height:120px;resize:vertical}
-label{display:block;margin:10px 0 6px;color:#b9c6dd;font-size:13px}
+textarea{
+  min-height:120px;
+  resize:vertical;
+}
+label{
+  display:block;
+  margin:10px 0 6px;
+  color:#b9c6dd;
+  font-size:13px;
+}
 button{
-  border:none;border-radius:12px;padding:12px 14px;font-weight:900;color:white;
-  cursor:pointer;font-size:14px
+  border:none;
+  border-radius:12px;
+  padding:12px 14px;
+  font-weight:900;
+  color:white;
+  cursor:pointer;
+  font-size:14px;
 }
-.btn-blue{background:var(--blue)}.btn-green{background:var(--green)}
-.btn-red{background:var(--red)}.btn-orange{background:var(--orange)}
-.btn-dark{background:#1b2a42}.btn-purple{background:var(--purple)}
-.actions{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+.btn-blue{background:var(--blue)}
+.btn-green{background:var(--green)}
+.btn-red{background:var(--red)}
+.btn-orange{background:var(--orange)}
+.btn-dark{background:#1b2a42}
+.btn-purple{background:var(--purple)}
+.actions{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+  margin-top:12px;
+}
 .result-card{
-  background:#07111f;border:1px solid var(--line);border-radius:14px;
-  padding:12px;margin-top:10px
+  background:#07111f;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+  margin-top:10px;
 }
-.stock-line{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.stock-name{font-size:17px;font-weight:900}
-.score{font-size:18px;font-weight:900}
+.stock-line{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+.stock-name{
+  font-size:17px;
+  font-weight:900;
+}
+.score{
+  font-size:18px;
+  font-weight:900;
+}
 .tag{
-  display:inline-block;padding:4px 7px;border-radius:8px;font-size:11px;
-  margin:4px 4px 0 0;background:#13233b;color:#a9c6ff
+  display:inline-block;
+  padding:4px 7px;
+  border-radius:8px;
+  font-size:11px;
+  margin:4px 4px 0 0;
+  background:#13233b;
+  color:#a9c6ff;
 }
 .tag.green{background:rgba(33,199,122,.15);color:#8ff0be}
 .tag.red{background:rgba(255,91,110,.15);color:#ff9daa}
 .tag.yellow{background:rgba(255,209,102,.16);color:#ffe08a}
-.tag.purple{background:rgba(155,92,255,.16);color:#d2bdff}
-.reason-list{margin:8px 0 0;padding-left:18px;color:#b9c6dd;font-size:13px;line-height:1.7}
-.small{font-size:12px;color:var(--muted)}
-.hr{height:1px;background:var(--line);margin:12px 0}
-.plan-box{
-  background:#081426;border:1px solid var(--line);border-radius:12px;
-  padding:10px;margin-top:10px
+.reason-list{
+  margin:8px 0 0;
+  padding-left:18px;
+  color:#b9c6dd;
+  font-size:13px;
+  line-height:1.7;
 }
-.plan-title{font-size:13px;font-weight:900;margin-bottom:6px}
-.footer{color:#7f8da8;font-size:11px;line-height:1.7;padding:20px 0 40px}
+.small{
+  font-size:12px;
+  color:var(--muted);
+}
+.hr{
+  height:1px;
+  background:var(--line);
+  margin:12px 0;
+}
+.plan-box{
+  background:#081426;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px;
+  margin-top:10px;
+}
+.plan-title{
+  font-size:13px;
+  font-weight:900;
+  margin-bottom:6px;
+}
+.footer{
+  color:#7f8da8;
+  font-size:11px;
+  line-height:1.7;
+  padding:20px 0 40px;
+}
 .profit{color:#8ff0be;font-weight:900}
 .loss{color:#ff9daa;font-weight:900}
+pre{
+  white-space:pre-wrap;
+  font-size:11px;
+  line-height:1.5;
+  color:#dce8ff;
+}
 </style>
 </head>
 
@@ -99,8 +242,8 @@ button{
 <div class="app">
 
   <div class="header">
-    <div class="title">短线强势股纪律辅助 <span class="badge">V3.7.9</span></div>
-    <div class="sub">实时行情对接 · Worker接口 · 自动刷新 · 交易纪律生成</div>
+    <div class="title">短线强势股纪律辅助 <span class="badge">V3.7.9.1</span></div>
+    <div class="sub">实时行情对接 · Worker接口 · 调试增强 · 自动生成交易纪律</div>
   </div>
 
   <div class="card">
@@ -125,17 +268,13 @@ button{
   </div>
 
   <details open>
-    <summary>三、实时行情对接 V3.7.9</summary>
+    <summary>三、实时行情对接 V3.7.9.1</summary>
 
     <label>行情接口地址</label>
-    <input id="liveApiUrl" value="https://stock-live-worker.znm03291108.workers.dev" placeholder="例如：https://stock-live-worker.znm03291108.workers.dev">
+    <input id="liveApiUrl" value="https://stock-live-worker.znm03291108.workers.dev">
 
     <label>股票代码</label>
-    <textarea id="liveCodes" placeholder="300592
-600000
-000001">300592
-600000
-000001</textarea>
+    <textarea id="liveCodes">300592</textarea>
 
     <div class="actions">
       <button class="btn-blue" onclick="fetchLiveQuotes()">获取实时行情</button>
@@ -145,7 +284,7 @@ button{
     </div>
 
     <div class="tip" style="margin-top:10px;">
-      提醒：自动刷新建议 15 秒以上，不要过快刷新。当前版本只做行情和纪律辅助，不做自动下单。
+      自动刷新建议 15 秒以上，不要过快刷新。当前版本只做行情和纪律辅助，不做自动下单。
     </div>
 
     <div id="liveList" style="margin-top:10px;"></div>
@@ -166,11 +305,11 @@ button{
 
     <div class="tip" style="margin-top:10px;">
       实时接口不稳定时，可以手动粘贴：<br>
-      300592 华凯易佰 12.35 +3.2% MA5 11.8 放量 向上
+      300592 华凯易佰 17.61 +4.02% MA5 16.07 正常 向上
     </div>
 
     <label>手动行情文本</label>
-    <textarea id="batchInput" placeholder="300592 华凯易佰 12.35 +3.2% MA5 11.8 放量 向上"></textarea>
+    <textarea id="batchInput" placeholder="300592 华凯易佰 17.61 +4.02% MA5 16.07 正常 向上"></textarea>
 
     <div class="actions">
       <button class="btn-blue" onclick="batchAnalyze()">手动生成纪律</button>
@@ -187,10 +326,10 @@ button{
     <input id="reviewName" placeholder="例如：300592 华凯易佰">
 
     <label>实际买入价</label>
-    <input id="buyPrice" type="number" step="0.001" placeholder="例如：12.30">
+    <input id="buyPrice" type="number" step="0.001" placeholder="例如：17.30">
 
     <label>实际卖出价</label>
-    <input id="sellPrice" type="number" step="0.001" placeholder="例如：12.75">
+    <input id="sellPrice" type="number" step="0.001" placeholder="例如：17.80">
 
     <label>股数</label>
     <input id="shares" type="number" step="1" placeholder="例如：100">
@@ -249,51 +388,79 @@ let results = [];
 let parsedItems = [];
 let liveItems = [];
 let liveTimer = null;
-let reviews = JSON.parse(localStorage.getItem("stock_reviews_v379") || "[]");
+let reviews = JSON.parse(localStorage.getItem("stock_reviews_v3791") || "[]");
 
-function getLiveApiUrl(){
-  const url = document.getElementById("liveApiUrl").value.trim();
-  if(!url){
-    alert("请先填写行情接口地址");
-    return "";
-  }
-  return url.replace(/\/$/,"");
-}
-
-function getLiveCodes(){
-  const text = document.getElementById("liveCodes").value.trim();
-  return text.split(/[,\s，\n]+/).map(x=>x.trim()).filter(Boolean);
+function fetchEl(id){
+  return document.getElementById(id);
 }
 
 async function fetchLiveQuotes(){
-  const api = getLiveApiUrl();
-  if(!api) return;
+  alert("按钮已触发，开始请求行情");
 
-  const codes = getLiveCodes();
-  if(codes.length === 0){
-    alert("请先填写股票代码");
+  const apiInput = fetchEl("liveApiUrl");
+  const codesInput = fetchEl("liveCodes");
+  const statusBox = fetchEl("liveStatus");
+
+  if(!apiInput || !codesInput || !statusBox){
+    alert("页面元素缺失：liveApiUrl / liveCodes / liveStatus 没找到");
     return;
   }
 
-  liveStatus.className = "status warn";
-  liveStatus.innerHTML = "正在获取实时行情……";
+  const api = apiInput.value.trim().replace(/\/$/,"");
+
+  const codes = codesInput.value
+    .split(/[,\s，\n]+/)
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  if(!api){
+    alert("行情接口地址为空");
+    return;
+  }
+
+  if(codes.length === 0){
+    alert("股票代码为空");
+    return;
+  }
+
+  const requestUrl = api + "/quote?codes=" + encodeURIComponent(codes.join(","));
+
+  statusBox.className = "status warn";
+  statusBox.innerHTML = "正在请求：<br>" + escapeHtml(requestUrl);
 
   try{
-    const url = api + "/quote?codes=" + encodeURIComponent(codes.join(","));
-    const res = await fetch(url);
-    const data = await res.json();
+    const res = await fetch(requestUrl);
+    const text = await res.text();
+
+    statusBox.innerHTML =
+      "接口已返回，正在解析 JSON……<br><pre>" +
+      escapeHtml(text.slice(0, 800)) +
+      "</pre>";
+
+    let data;
+
+    try{
+      data = JSON.parse(text);
+    }catch(e){
+      statusBox.className = "status bad";
+      statusBox.innerHTML =
+        "接口返回不是 JSON：<br><pre>" +
+        escapeHtml(text.slice(0, 1200)) +
+        "</pre>";
+      return;
+    }
 
     if(!data.ok){
-      liveStatus.className = "status bad";
-      liveStatus.innerHTML = "行情获取失败：" + escapeHtml(data.error || "未知错误");
+      statusBox.className = "status bad";
+      statusBox.innerHTML = "行情获取失败：<br>" + escapeHtml(data.error || "未知错误");
       return;
     }
 
     liveItems = data.items || [];
 
     if(liveItems.length === 0){
-      liveStatus.className = "status bad";
-      liveStatus.innerHTML = "没有获取到有效行情。请检查股票代码或 Worker 接口。";
+      statusBox.className = "status bad";
+      statusBox.innerHTML = "接口 ok:true，但是 items 为空。";
       return;
     }
 
@@ -301,32 +468,36 @@ async function fetchLiveQuotes(){
       return `${x.code} ${x.name} ${x.price} ${x.changePct}% MA5 ${x.ma5 || ""} ${x.volumeText || "正常"} ${x.trendText || "震荡"}`;
     });
 
-    batchInput.value = lines.join("\n");
+    fetchEl("batchInput").value = lines.join("\n");
 
-    localStorage.setItem("stock_live_api_v379", api);
-    localStorage.setItem("stock_live_codes_v379", codes.join("\n"));
+    localStorage.setItem("stock_live_api_v3791", api);
+    localStorage.setItem("stock_live_codes_v3791", codes.join("\n"));
 
-    liveStatus.className = "status good";
-    liveStatus.innerHTML =
+    statusBox.className = "status good";
+    statusBox.innerHTML =
       `已获取 ${liveItems.length} 只股票行情。更新时间：${new Date().toLocaleTimeString()}<br>` +
-      `数据源：${escapeHtml(data.source || "worker")}`;
+      `数据源：${escapeHtml(data.source || "worker")}<br>` +
+      `请求地址：${escapeHtml(requestUrl)}`;
 
     renderLiveList();
     batchAnalyze();
 
   }catch(err){
-    liveStatus.className = "status bad";
-    liveStatus.innerHTML = "实时行情请求失败：" + escapeHtml(String(err.message || err));
+    statusBox.className = "status bad";
+    statusBox.innerHTML = "请求失败：<br>" + escapeHtml(String(err.message || err));
+    alert("请求失败：" + String(err.message || err));
   }
 }
 
 function renderLiveList(){
+  const box = fetchEl("liveList");
+
   if(!liveItems || liveItems.length === 0){
-    liveList.innerHTML = `<div class="status warn">暂无实时行情。</div>`;
+    box.innerHTML = `<div class="status warn">暂无实时行情。</div>`;
     return;
   }
 
-  liveList.innerHTML = liveItems.map(x=>{
+  box.innerHTML = liveItems.map(x=>{
     const pct = Number(x.changePct);
     const cls = pct >= 0 ? "profit" : "loss";
     const sign = pct > 0 ? "+" : "";
@@ -361,8 +532,9 @@ function startLiveMode(){
     fetchLiveQuotes();
   },15000);
 
-  liveStatus.className = "status good";
-  liveStatus.innerHTML = "自动刷新已启动：每 15 秒更新一次。";
+  const statusBox = fetchEl("liveStatus");
+  statusBox.className = "status good";
+  statusBox.innerHTML = "自动刷新已启动：每 15 秒更新一次。";
 }
 
 function stopLiveMode(){
@@ -370,8 +542,10 @@ function stopLiveMode(){
     clearInterval(liveTimer);
     liveTimer = null;
   }
-  liveStatus.className = "status warn";
-  liveStatus.innerHTML = "自动刷新已停止。";
+
+  const statusBox = fetchEl("liveStatus");
+  statusBox.className = "status warn";
+  statusBox.innerHTML = "自动刷新已停止。";
 }
 
 function copyLiveData(){
@@ -384,31 +558,66 @@ function copyLiveData(){
     return `${x.code} ${x.name} ${x.price} ${x.changePct}% MA5 ${x.ma5 || ""} ${x.volumeText || "正常"} ${x.trendText || "震荡"}`;
   }).join("\n");
 
-  navigator.clipboard.writeText(txt).then(()=>alert("实时行情文本已复制")).catch(()=>alert(txt));
+  navigator.clipboard.writeText(txt).then(()=>{
+    alert("实时行情文本已复制");
+  }).catch(()=>{
+    alert(txt);
+  });
 }
 
 function getMa5Status(ma5Value){
   const raw = String(ma5Value || "").trim();
-  if(raw === "") return {status:"缺失",level:"warn",reason:"未填写MA5，可能是数据源未返回或样本不足。"};
+
+  if(raw === ""){
+    return {
+      status:"缺失",
+      level:"warn",
+      reason:"未填写MA5，可能是数据源未返回或样本不足。"
+    };
+  }
+
   const v = Number(raw);
-  if(!Number.isFinite(v) || isNaN(v)) return {status:"无效",level:"bad",reason:"MA5不是有效数字，不能参与判断。"};
-  if(v <= 0) return {status:"无效",level:"bad",reason:"MA5小于或等于0，属于异常数据。"};
-  return {status:"正常",level:"good",reason:"MA5有效，可以用于判断价格是否站上短期均线。"};
+
+  if(!Number.isFinite(v) || isNaN(v)){
+    return {
+      status:"无效",
+      level:"bad",
+      reason:"MA5不是有效数字，不能参与判断。"
+    };
+  }
+
+  if(v <= 0){
+    return {
+      status:"无效",
+      level:"bad",
+      reason:"MA5小于或等于0，属于异常数据。"
+    };
+  }
+
+  return {
+    status:"正常",
+    level:"good",
+    reason:"MA5有效，可以用于判断价格是否站上短期均线。"
+  };
 }
 
 function normalizeVolume(v){
   v = String(v || "").trim();
+
   if(/放量|量增|明显放大|爆量|强/.test(v)) return "strong";
   if(/缩量|量弱|不足|弱/.test(v)) return "weak";
   if(/正常|平量|一般/.test(v)) return "normal";
+
   return "unknown";
 }
 
 function normalizeTrend(v){
   v = String(v || "").trim();
+
   if(/向上|上涨|强势|上升|多头|走强/.test(v)) return "up";
   if(/震荡|横盘|整理/.test(v)) return "flat";
   if(/走弱|下跌|向下|下降|破位|空头/.test(v)) return "down";
+
   return "unknown";
 }
 
@@ -421,7 +630,12 @@ function smartParseLine(line){
 
   let parts = text.split(/[,，\t]/).map(x=>x.trim()).filter(Boolean);
 
-  let name = "", price = "", changePct = "", ma5 = "", volumeText = "", trendText = "";
+  let name = "";
+  let price = "";
+  let changePct = "";
+  let ma5 = "";
+  let volumeText = "";
+  let trendText = "";
 
   if(parts.length >= 4){
     name = parts[0] || "";
@@ -460,7 +674,15 @@ function smartParseLine(line){
     name = code + " " + name;
   }
 
-  return {original,name:name.trim(),price,changePct,ma5,volumeText,trendText};
+  return {
+    original,
+    name:name.trim(),
+    price,
+    changePct,
+    ma5,
+    volumeText,
+    trendText
+  };
 }
 
 function extractNumber(str){
@@ -476,12 +698,15 @@ function extractPercent(str){
 
 function extractName(text, code){
   let t = text;
+
   if(code) t = t.replace(code,"");
+
   t = t.replace(/[+-]?\d+(\.\d+)?\s*%/g,"");
   t = t.replace(/MA5[:：]?\s*[0-9]+(\.[0-9]+)?/ig,"");
   t = t.replace(/[0-9]+(\.[0-9]+)?/g,"");
   t = t.replace(/放量|量增|爆量|明显放大|缩量|量弱|正常|平量|向上|上涨|走强|上升|多头|震荡|横盘|整理|走弱|下跌|向下|下降|破位/g,"");
   t = t.replace(/[,，]/g," ").trim();
+
   return t || "未识别名称";
 }
 
@@ -495,38 +720,94 @@ function analyzeStock(item){
   const volumeStatus = normalizeVolume(item.volumeText);
   const trendStatus = normalizeTrend(item.trendText);
 
-  let score = 0, risks = [], filters = [], tags = [];
+  let score = 0;
+  let risks = [];
+  let filters = [];
+  let tags = [];
 
-  if(!name || name === "未识别名称") filters.push("股票名称识别不足");
+  if(!name || name === "未识别名称"){
+    filters.push("股票名称识别不足");
+  }
 
   if(Number.isFinite(changePct)){
-    if(changePct > 0 && changePct <= 5){score += 18;tags.push("涨幅温和")}
-    else if(changePct > 5 && changePct <= 8){score += 8;risks.push("涨幅偏高，追高风险增加");tags.push("注意追高")}
-    else if(changePct > 8){score -= 15;filters.push("涨幅过高，不适合盲目追入");risks.push("高位回落风险较大");tags.push("高位风险")}
-    else if(changePct < 0){score -= 8;risks.push("当前为下跌状态，需要确认是否企稳");tags.push("弱势观察")}
-    else{risks.push("涨幅为0，短线强度不足");tags.push("强度不足")}
+    if(changePct > 0 && changePct <= 5){
+      score += 18;
+      tags.push("涨幅温和");
+    }else if(changePct > 5 && changePct <= 8){
+      score += 8;
+      risks.push("涨幅偏高，追高风险增加");
+      tags.push("注意追高");
+    }else if(changePct > 8){
+      score -= 15;
+      filters.push("涨幅过高，不适合盲目追入");
+      risks.push("高位回落风险较大");
+      tags.push("高位风险");
+    }else if(changePct < 0){
+      score -= 8;
+      risks.push("当前为下跌状态，需要确认是否企稳");
+      tags.push("弱势观察");
+    }else{
+      risks.push("涨幅为0，短线强度不足");
+      tags.push("强度不足");
+    }
   }else{
     filters.push("涨幅缺失或无效");
   }
 
   if(Number.isFinite(price) && price > 0 && ma5Status.status === "正常"){
-    if(price > ma5){score += 22;tags.push("站上MA5")}
-    else{score -= 18;filters.push("当前价格未站上MA5");risks.push("短线均线支撑不足");tags.push("未站上MA5")}
+    if(price > ma5){
+      score += 22;
+      tags.push("站上MA5");
+    }else{
+      score -= 18;
+      filters.push("当前价格未站上MA5");
+      risks.push("短线均线支撑不足");
+      tags.push("未站上MA5");
+    }
   }else{
-    score -= 8;filters.push("MA5缺失或无效，不能完成均线确认");risks.push("MA5数据不足，结果可信度下降");tags.push("MA5异常")
+    score -= 8;
+    filters.push("MA5缺失或无效，不能完成均线确认");
+    risks.push("MA5数据不足，结果可信度下降");
+    tags.push("MA5异常");
   }
 
-  if(volumeStatus === "strong"){score += 20;tags.push("放量")}
-  else if(volumeStatus === "normal"){score += 8;tags.push("量能正常")}
-  else if(volumeStatus === "weak"){score -= 12;filters.push("成交量不足，持续性存疑");risks.push("缩量上涨容易冲高回落");tags.push("缩量")}
-  else{risks.push("成交量未知，无法确认资金强度");tags.push("量能未知")}
+  if(volumeStatus === "strong"){
+    score += 20;
+    tags.push("放量");
+  }else if(volumeStatus === "normal"){
+    score += 8;
+    tags.push("量能正常");
+  }else if(volumeStatus === "weak"){
+    score -= 12;
+    filters.push("成交量不足，持续性存疑");
+    risks.push("缩量上涨容易冲高回落");
+    tags.push("缩量");
+  }else{
+    risks.push("成交量未知，无法确认资金强度");
+    tags.push("量能未知");
+  }
 
-  if(trendStatus === "up"){score += 25;tags.push("趋势向上")}
-  else if(trendStatus === "flat"){score += 5;risks.push("趋势震荡，适合观察，不适合激进");tags.push("震荡")}
-  else if(trendStatus === "down"){score -= 25;filters.push("短线趋势走弱");risks.push("趋势未修复前不适合主动进攻");tags.push("趋势走弱")}
-  else{risks.push("趋势未知，建议先观察");tags.push("趋势未知")}
+  if(trendStatus === "up"){
+    score += 25;
+    tags.push("趋势向上");
+  }else if(trendStatus === "flat"){
+    score += 5;
+    risks.push("趋势震荡，适合观察，不适合激进");
+    tags.push("震荡");
+  }else if(trendStatus === "down"){
+    score -= 25;
+    filters.push("短线趋势走弱");
+    risks.push("趋势未修复前不适合主动进攻");
+    tags.push("趋势走弱");
+  }else{
+    risks.push("趋势未知，建议先观察");
+    tags.push("趋势未知");
+  }
 
-  let conclusion, action, level;
+  let conclusion = "";
+  let action = "";
+  let level = "";
+
   if(score >= 70 && filters.length === 0){
     conclusion = "强势关注";
     action = "可列入今日重点候选，但只适合分批观察，不建议重仓追高。";
@@ -544,15 +825,33 @@ function analyzeStock(item){
   const tradePlan = buildTradePlan(price, ma5, changePct, conclusion, ma5Status, volumeStatus, trendStatus);
 
   return {
-    ...item, price, changePct, ma5:ma5Raw, ma5Status, volumeStatus, trendStatus,
-    score, conclusion, action, level, risks, filters, tags, tradePlan,
+    ...item,
+    price,
+    changePct,
+    ma5:ma5Raw,
+    ma5Status,
+    volumeStatus,
+    trendStatus,
+    score,
+    conclusion,
+    action,
+    level,
+    risks,
+    filters,
+    tags,
+    tradePlan,
     time:new Date().toLocaleString()
   };
 }
 
 function buildTradePlan(price, ma5, changePct, conclusion, ma5Status, volumeStatus, trendStatus){
   let canPlan = Number.isFinite(price) && price > 0;
-  let buyLow = "", buyHigh = "", stopLoss = "", takeProfit1 = "", takeProfit2 = "";
+
+  let buyLow = "";
+  let buyHigh = "";
+  let stopLoss = "";
+  let takeProfit1 = "";
+  let takeProfit2 = "";
   let position = "0%";
   let tStatus = "禁止做T";
   let tReason = "数据不足或风险偏高，不适合做T。";
@@ -588,19 +887,35 @@ function buildTradePlan(price, ma5, changePct, conclusion, ma5Status, volumeStat
     }
   }
 
-  return {buyLow,buyHigh,stopLoss,takeProfit1,takeProfit2,position,tStatus,tReason,planText};
+  return {
+    buyLow,
+    buyHigh,
+    stopLoss,
+    takeProfit1,
+    takeProfit2,
+    position,
+    tStatus,
+    tReason,
+    planText
+  };
 }
 
 function batchAnalyze(){
-  const text = batchInput.value.trim();
-  if(!text){alert("请先粘贴或获取行情数据");return}
+  const text = fetchEl("batchInput").value.trim();
+
+  if(!text){
+    alert("请先粘贴或获取行情数据");
+    return;
+  }
 
   const lines = text.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+
   parsedItems = lines.map(smartParseLine);
   results = parsedItems.map(analyzeStock).filter(x=>x.name && x.name !== "未识别名称");
   results.sort((a,b)=>b.score-a.score);
 
-  localStorage.setItem("stock_results_v379", JSON.stringify(results));
+  localStorage.setItem("stock_results_v3791", JSON.stringify(results));
+
   renderAll();
 }
 
@@ -619,41 +934,45 @@ function renderStats(){
   const watch = results.filter(x=>x.conclusion==="观察买点").length;
   const bad = results.filter(x=>x.conclusion==="暂不参与").length;
 
-  totalCount.innerText = total;
-  validCount.innerText = valid;
-  watchCount.innerText = watch;
-  filterCount.innerText = bad;
+  fetchEl("totalCount").innerText = total;
+  fetchEl("validCount").innerText = valid;
+  fetchEl("watchCount").innerText = watch;
+  fetchEl("filterCount").innerText = bad;
+
+  const box = fetchEl("finalConclusion");
 
   if(total===0){
-    finalConclusion.className="status warn";
-    finalConclusion.innerHTML="暂无数据。请先获取实时行情。";
+    box.className="status warn";
+    box.innerHTML="暂无数据。请先获取实时行情。";
     return;
   }
 
   if(valid>0){
-    finalConclusion.className="status good";
-    finalConclusion.innerHTML=`<b>今日识别 ${total} 只股票，其中 ${valid} 只强势关注。</b><br>系统已根据实时行情生成交易纪律。`;
+    box.className="status good";
+    box.innerHTML=`<b>今日识别 ${total} 只股票，其中 ${valid} 只强势关注。</b><br>系统已根据实时行情生成交易纪律。`;
   }else if(watch>0){
-    finalConclusion.className="status warn";
-    finalConclusion.innerHTML=`<b>今日暂无完全合格强势股，有 ${watch} 只可观察买点。</b><br>只适合等待确认，不适合直接追高。`;
+    box.className="status warn";
+    box.innerHTML=`<b>今日暂无完全合格强势股，有 ${watch} 只可观察买点。</b><br>只适合等待确认，不适合直接追高。`;
   }else{
-    finalConclusion.className="status bad";
-    finalConclusion.innerHTML=`<b>今日暂无合格候选。</b><br>多数股票存在趋势、MA5、量能或涨幅风险，建议谨慎。`;
+    box.className="status bad";
+    box.innerHTML=`<b>今日暂无合格候选。</b><br>多数股票存在趋势、MA5、量能或涨幅风险，建议谨慎。`;
   }
 }
 
 function renderTop(){
+  const box = fetchEl("topCandidate");
+
   if(results.length===0){
-    topCandidate.className="status warn";
-    topCandidate.innerHTML="暂无候选结果。";
+    box.className="status warn";
+    box.innerHTML="暂无候选结果。";
     return;
   }
 
   const top = results[0];
   const p = top.tradePlan;
 
-  topCandidate.className = "status " + top.level;
-  topCandidate.innerHTML = `
+  box.className = "status " + top.level;
+  box.innerHTML = `
     <div class="stock-line">
       <div class="stock-name">${escapeHtml(top.name)}</div>
       <div class="score">${top.score}分</div>
@@ -688,12 +1007,14 @@ function renderTop(){
 }
 
 function renderResults(){
+  const box = fetchEl("resultList");
+
   if(results.length===0){
-    resultList.innerHTML=`<div class="status warn">暂无结果。</div>`;
+    box.innerHTML=`<div class="status warn">暂无结果。</div>`;
     return;
   }
 
-  resultList.innerHTML = results.map((r,i)=>{
+  box.innerHTML = results.map((r,i)=>{
     const tagClass = r.level==="good"?"green":r.level==="bad"?"red":"yellow";
     const p = r.tradePlan;
 
@@ -738,33 +1059,41 @@ function renderResults(){
 }
 
 function renderFilterReasons(){
+  const box = fetchEl("filterReasons");
+
   if(results.length===0){
-    filterReasons.className="status warn";
-    filterReasons.innerHTML="暂无过滤记录。";
+    box.className="status warn";
+    box.innerHTML="暂无过滤记录。";
     return;
   }
 
   let map = {};
-  results.forEach(r=>r.filters.forEach(f=>map[f]=(map[f]||0)+1));
+
+  results.forEach(r=>{
+    r.filters.forEach(f=>{
+      map[f]=(map[f]||0)+1;
+    });
+  });
+
   const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]);
 
   if(entries.length===0){
-    filterReasons.className="status good";
-    filterReasons.innerHTML="暂无明显过滤项。";
+    box.className="status good";
+    box.innerHTML="暂无明显过滤项。";
     return;
   }
 
-  filterReasons.className="status warn";
-  filterReasons.innerHTML = `<b>今日主要过滤原因：</b><ul class="reason-list">${entries.map(([k,v])=>`<li>${escapeHtml(k)}：${v}只</li>`).join("")}</ul>`;
+  box.className="status warn";
+  box.innerHTML = `<b>今日主要过滤原因：</b><ul class="reason-list">${entries.map(([k,v])=>`<li>${escapeHtml(k)}：${v}只</li>`).join("")}</ul>`;
 }
 
 function addReview(){
-  const name = reviewName.value.trim();
-  const buy = Number(buyPrice.value);
-  const sell = Number(sellPrice.value);
-  const count = Number(shares.value);
-  const disciplineValue = discipline.value;
-  const note = reviewNote.value.trim();
+  const name = fetchEl("reviewName").value.trim();
+  const buy = Number(fetchEl("buyPrice").value);
+  const sell = Number(fetchEl("sellPrice").value);
+  const count = Number(fetchEl("shares").value);
+  const disciplineValue = fetchEl("discipline").value;
+  const note = fetchEl("reviewNote").value.trim();
 
   if(!name){alert("请填写股票名称");return}
   if(!Number.isFinite(buy) || buy <= 0){alert("请填写有效买入价");return}
@@ -775,14 +1104,19 @@ function addReview(){
   const pnlPct = round2(((sell - buy) / buy) * 100);
 
   reviews.unshift({
-    name,buy,sell,count,pnl,pnlPct,
+    name,
+    buy,
+    sell,
+    count,
+    pnl,
+    pnlPct,
     discipline:disciplineValue,
     disciplineText:getDisciplineText(disciplineValue),
     note,
     time:new Date().toLocaleString()
   });
 
-  localStorage.setItem("stock_reviews_v379", JSON.stringify(reviews));
+  localStorage.setItem("stock_reviews_v3791", JSON.stringify(reviews));
   clearReviewForm();
   renderReviews();
   renderReviewStats();
@@ -795,14 +1129,14 @@ function getDisciplineText(v){
 }
 
 function renderReviews(){
-  if(!reviewList) return;
+  const box = fetchEl("reviewList");
 
   if(reviews.length === 0){
-    reviewList.innerHTML = `<div class="status warn">暂无复盘记录。</div>`;
+    box.innerHTML = `<div class="status warn">暂无复盘记录。</div>`;
     return;
   }
 
-  reviewList.innerHTML = reviews.map((r,i)=>{
+  box.innerHTML = reviews.map((r,i)=>{
     const cls = r.pnl >= 0 ? "profit" : "loss";
     const sign = r.pnl >= 0 ? "+" : "";
     const disciplineTag = r.discipline === "yes" ? "green" : r.discipline === "partial" ? "yellow" : "red";
@@ -835,72 +1169,4 @@ function renderReviews(){
               <div class="label">盈亏比例</div>
             </div>
           </div>
-          ${r.note ? `<div class="tip" style="margin-top:8px;">复盘：${escapeHtml(r.note)}</div>` : ""}
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderReviewStats(){
-  if(!tradeCount) return;
-
-  const count = reviews.length;
-  tradeCount.innerText = count;
-
-  if(count === 0){
-    winRate.innerText = "0%";
-    totalPnl.innerText = "0";
-    disciplineRate.innerText = "0%";
-    return;
-  }
-
-  const wins = reviews.filter(x=>x.pnl > 0).length;
-  const total = reviews.reduce((sum,x)=>sum + Number(x.pnl || 0),0);
-  const disciplineYes = reviews.filter(x=>x.discipline === "yes").length;
-
-  winRate.innerText = round2(wins / count * 100) + "%";
-  totalPnl.innerText = round2(total);
-  totalPnl.className = total >= 0 ? "num profit" : "num loss";
-  disciplineRate.innerText = round2(disciplineYes / count * 100) + "%";
-}
-
-function deleteReview(i){
-  reviews.splice(i,1);
-  localStorage.setItem("stock_reviews_v379", JSON.stringify(reviews));
-  renderReviews();
-  renderReviewStats();
-}
-
-function clearReviewForm(){
-  reviewName.value = "";
-  buyPrice.value = "";
-  sellPrice.value = "";
-  shares.value = "";
-  discipline.value = "yes";
-  reviewNote.value = "";
-}
-
-function clearReviews(){
-  if(confirm("确定清空所有复盘记录吗？")){
-    reviews = [];
-    localStorage.removeItem("stock_reviews_v379");
-    renderReviews();
-    renderReviewStats();
-  }
-}
-
-function buildTradePlanText(){
-  if(results.length===0) return "暂无交易计划。";
-
-  let txt = `【今日短线交易纪律计划】\n`;
-  txt += `识别股票：${results.length}只\n`;
-  txt += `强势关注：${results.filter(x=>x.conclusion==="强势关注").length}只\n`;
-  txt += `观察买点：${results.filter(x=>x.conclusion==="观察买点").length}只\n`;
-  txt += `暂不参与：${results.filter(x=>x.conclusion==="暂不参与").length}只\n\n`;
-
-  txt += `【Top候选交易计划】\n`;
-  results.slice(0,5).forEach((r,i)=>{
-    const p = r.tradePlan;
-    txt += `${i+1}. ${r.name}｜${r.score}分｜${r.conclusion}\n`;
-    txt += `当前价:${safe(r.price
+          ${r.note ? `<div class="tip"
