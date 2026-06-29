@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>短线强势股纪律辅助 V3.7.8</title>
+<title>短线强势股纪律辅助 V3.7.9</title>
 <style>
 :root{
   --bg:#07111f;--card:#101a2b;--card2:#0c1525;--line:#24324a;
@@ -56,7 +56,7 @@ input,textarea,select{
   width:100%;background:#07111f;border:1px solid var(--line);color:var(--text);
   border-radius:12px;padding:12px;outline:none;font-size:14px
 }
-textarea{min-height:140px;resize:vertical}
+textarea{min-height:120px;resize:vertical}
 label{display:block;margin:10px 0 6px;color:#b9c6dd;font-size:13px}
 button{
   border:none;border-radius:12px;padding:12px 14px;font-weight:900;color:white;
@@ -99,14 +99,14 @@ button{
 <div class="app">
 
   <div class="header">
-    <div class="title">短线强势股纪律辅助 <span class="badge">V3.7.8</span></div>
-    <div class="sub">交易纪律面板 · 实盘复盘记录 · 盈亏统计 · 纪律执行率</div>
+    <div class="title">短线强势股纪律辅助 <span class="badge">V3.7.9</span></div>
+    <div class="sub">实时行情对接 · Worker接口 · 自动刷新 · 交易纪律生成</div>
   </div>
 
   <div class="card">
     <div class="section-title">一、今日最终结论</div>
     <div id="finalConclusion" class="status warn">
-      等待数据。系统会自动生成候选排序、交易纪律和复盘记录。
+      等待实时行情。输入股票代码后，系统会自动获取行情并生成交易纪律。
     </div>
 
     <div class="grid" style="margin-top:12px;">
@@ -118,49 +118,70 @@ button{
   </div>
 
   <div class="card">
-    <div class="section-title">二、复盘统计</div>
-    <div class="grid" style="margin-top:12px;">
-      <div class="metric"><div class="num" id="tradeCount">0</div><div class="label">交易记录</div></div>
-      <div class="metric"><div class="num" id="winRate">0%</div><div class="label">胜率</div></div>
-      <div class="metric"><div class="num" id="totalPnl">0</div><div class="label">总盈亏</div></div>
-      <div class="metric"><div class="num" id="disciplineRate">0%</div><div class="label">纪律执行率</div></div>
+    <div class="section-title">二、实时行情状态</div>
+    <div id="liveStatus" class="status warn">
+      实时行情未启动。请填写接口地址和股票代码。
     </div>
-  </div>
-
-  <div class="card">
-    <div class="section-title">三、今日Top交易纪律</div>
-    <div id="topCandidate" class="status warn">暂无候选。请先粘贴数据并点击“生成交易纪律”。</div>
   </div>
 
   <details open>
-    <summary>四、粘贴行情数据</summary>
+    <summary>三、实时行情对接 V3.7.9</summary>
 
-    <div class="tip" style="margin-top:10px;">
-      支持格式：<br>
-      300592 华凯易佰 12.35 +3.2% MA5 11.8 放量 向上<br>
-      或：300592 华凯易佰, 12.35, 3.2, 11.8, 放量, 向上
-    </div>
+    <label>行情接口地址</label>
+    <input id="liveApiUrl" value="https://stock-live-worker.znm03291108.workers.dev" placeholder="例如：https://stock-live-worker.znm03291108.workers.dev">
 
-    <label>粘贴数据</label>
-    <textarea id="batchInput" placeholder="300592 华凯易佰 12.35 +3.2% MA5 11.8 放量 向上
-002xxx 示例股票A 8.66 +6.5% MA5 8.20 缩量 震荡
-688xxx 示例股票B 20.15 -1.2% MA5 21.00 正常 走弱"></textarea>
+    <label>股票代码</label>
+    <textarea id="liveCodes" placeholder="300592
+600000
+000001">300592
+600000
+000001</textarea>
 
     <div class="actions">
-      <button class="btn-blue" onclick="batchAnalyze()">生成交易纪律</button>
-      <button class="btn-green" onclick="fillDemo()">填入示例</button>
-      <button class="btn-purple" onclick="copyTradePlan()">复制交易计划</button>
-      <button class="btn-red" onclick="clearMarketData()">清空行情</button>
+      <button class="btn-blue" onclick="fetchLiveQuotes()">获取实时行情</button>
+      <button class="btn-green" onclick="startLiveMode()">开始自动刷新</button>
+      <button class="btn-orange" onclick="stopLiveMode()">停止刷新</button>
+      <button class="btn-purple" onclick="copyLiveData()">复制行情文本</button>
     </div>
+
+    <div class="tip" style="margin-top:10px;">
+      提醒：自动刷新建议 15 秒以上，不要过快刷新。当前版本只做行情和纪律辅助，不做自动下单。
+    </div>
+
+    <div id="liveList" style="margin-top:10px;"></div>
   </details>
+
+  <div class="card">
+    <div class="section-title">四、今日Top交易纪律</div>
+    <div id="topCandidate" class="status warn">暂无候选。请先获取实时行情。</div>
+  </div>
 
   <details open>
     <summary>五、候选排序 + 交易计划</summary>
     <div id="resultList" style="margin-top:10px;"></div>
   </details>
 
-  <details open>
-    <summary>六、添加实盘复盘记录</summary>
+  <details>
+    <summary>六、手动粘贴行情数据</summary>
+
+    <div class="tip" style="margin-top:10px;">
+      实时接口不稳定时，可以手动粘贴：<br>
+      300592 华凯易佰 12.35 +3.2% MA5 11.8 放量 向上
+    </div>
+
+    <label>手动行情文本</label>
+    <textarea id="batchInput" placeholder="300592 华凯易佰 12.35 +3.2% MA5 11.8 放量 向上"></textarea>
+
+    <div class="actions">
+      <button class="btn-blue" onclick="batchAnalyze()">手动生成纪律</button>
+      <button class="btn-green" onclick="fillDemo()">填入示例</button>
+      <button class="btn-purple" onclick="copyTradePlan()">复制交易计划</button>
+      <button class="btn-red" onclick="clearMarketData()">清空行情</button>
+    </div>
+  </details>
+
+  <details>
+    <summary>七、实盘复盘记录</summary>
 
     <label>股票名称 / 代码</label>
     <input id="reviewName" placeholder="例如：300592 华凯易佰">
@@ -190,10 +211,14 @@ button{
       <button class="btn-dark" onclick="clearReviewForm()">清空表单</button>
       <button class="btn-red" onclick="clearReviews()">清空复盘</button>
     </div>
-  </details>
 
-  <details open>
-    <summary>七、实盘复盘列表</summary>
+    <div class="grid" style="margin-top:12px;">
+      <div class="metric"><div class="num" id="tradeCount">0</div><div class="label">交易记录</div></div>
+      <div class="metric"><div class="num" id="winRate">0%</div><div class="label">胜率</div></div>
+      <div class="metric"><div class="num" id="totalPnl">0</div><div class="label">总盈亏</div></div>
+      <div class="metric"><div class="num" id="disciplineRate">0%</div><div class="label">纪律执行率</div></div>
+    </div>
+
     <div id="reviewList" style="margin-top:10px;"></div>
   </details>
 
@@ -205,11 +230,11 @@ button{
   <details>
     <summary>九、交易纪律说明</summary>
     <ul class="reason-list">
-      <li><b>低吸区：</b>不是让你立刻买，而是提醒等待回踩或确认。</li>
-      <li><b>止损线：</b>跌破后优先控制风险，不要硬扛。</li>
-      <li><b>第一止盈：</b>适合减仓，不代表必须清仓。</li>
-      <li><b>纪律执行率：</b>比单次盈亏更重要，用来检查自己是否冲动交易。</li>
-      <li><b>复盘目的：</b>不是证明自己对，而是找出亏损来源和执行问题。</li>
+      <li>实时行情只用于辅助判断，不代表确定性买卖点。</li>
+      <li>强势关注不等于立即买入，要等待承接和回踩确认。</li>
+      <li>涨幅过高不追，缩量上涨不追，跌破MA5不急。</li>
+      <li>有底仓才适合做T，没底仓不要为了做T硬买。</li>
+      <li>先看风险，再看机会；先看能不能亏得起，再看能不能赚。</li>
     </ul>
   </details>
 
@@ -222,7 +247,145 @@ button{
 <script>
 let results = [];
 let parsedItems = [];
-let reviews = JSON.parse(localStorage.getItem("stock_reviews_v378") || "[]");
+let liveItems = [];
+let liveTimer = null;
+let reviews = JSON.parse(localStorage.getItem("stock_reviews_v379") || "[]");
+
+function getLiveApiUrl(){
+  const url = document.getElementById("liveApiUrl").value.trim();
+  if(!url){
+    alert("请先填写行情接口地址");
+    return "";
+  }
+  return url.replace(/\/$/,"");
+}
+
+function getLiveCodes(){
+  const text = document.getElementById("liveCodes").value.trim();
+  return text.split(/[,\s，\n]+/).map(x=>x.trim()).filter(Boolean);
+}
+
+async function fetchLiveQuotes(){
+  const api = getLiveApiUrl();
+  if(!api) return;
+
+  const codes = getLiveCodes();
+  if(codes.length === 0){
+    alert("请先填写股票代码");
+    return;
+  }
+
+  liveStatus.className = "status warn";
+  liveStatus.innerHTML = "正在获取实时行情……";
+
+  try{
+    const url = api + "/quote?codes=" + encodeURIComponent(codes.join(","));
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if(!data.ok){
+      liveStatus.className = "status bad";
+      liveStatus.innerHTML = "行情获取失败：" + escapeHtml(data.error || "未知错误");
+      return;
+    }
+
+    liveItems = data.items || [];
+
+    if(liveItems.length === 0){
+      liveStatus.className = "status bad";
+      liveStatus.innerHTML = "没有获取到有效行情。请检查股票代码或 Worker 接口。";
+      return;
+    }
+
+    const lines = liveItems.map(x=>{
+      return `${x.code} ${x.name} ${x.price} ${x.changePct}% MA5 ${x.ma5 || ""} ${x.volumeText || "正常"} ${x.trendText || "震荡"}`;
+    });
+
+    batchInput.value = lines.join("\n");
+
+    localStorage.setItem("stock_live_api_v379", api);
+    localStorage.setItem("stock_live_codes_v379", codes.join("\n"));
+
+    liveStatus.className = "status good";
+    liveStatus.innerHTML =
+      `已获取 ${liveItems.length} 只股票行情。更新时间：${new Date().toLocaleTimeString()}<br>` +
+      `数据源：${escapeHtml(data.source || "worker")}`;
+
+    renderLiveList();
+    batchAnalyze();
+
+  }catch(err){
+    liveStatus.className = "status bad";
+    liveStatus.innerHTML = "实时行情请求失败：" + escapeHtml(String(err.message || err));
+  }
+}
+
+function renderLiveList(){
+  if(!liveItems || liveItems.length === 0){
+    liveList.innerHTML = `<div class="status warn">暂无实时行情。</div>`;
+    return;
+  }
+
+  liveList.innerHTML = liveItems.map(x=>{
+    const pct = Number(x.changePct);
+    const cls = pct >= 0 ? "profit" : "loss";
+    const sign = pct > 0 ? "+" : "";
+
+    return `
+      <div class="result-card">
+        <div class="stock-line">
+          <div>
+            <div class="stock-name">${escapeHtml(x.code)} ${escapeHtml(x.name)}</div>
+            <div class="small">实时行情接口</div>
+          </div>
+          <div class="${cls}" style="font-size:18px;font-weight:900;">
+            ${sign}${safe(x.changePct)}%
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <span class="tag">现价 ${safe(x.price)}</span>
+          <span class="tag">MA5 ${safe(x.ma5)}</span>
+          <span class="tag">${escapeHtml(x.volumeText || "正常")}</span>
+          <span class="tag">${escapeHtml(x.trendText || "震荡")}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function startLiveMode(){
+  stopLiveMode();
+  fetchLiveQuotes();
+
+  liveTimer = setInterval(()=>{
+    fetchLiveQuotes();
+  },15000);
+
+  liveStatus.className = "status good";
+  liveStatus.innerHTML = "自动刷新已启动：每 15 秒更新一次。";
+}
+
+function stopLiveMode(){
+  if(liveTimer){
+    clearInterval(liveTimer);
+    liveTimer = null;
+  }
+  liveStatus.className = "status warn";
+  liveStatus.innerHTML = "自动刷新已停止。";
+}
+
+function copyLiveData(){
+  if(!liveItems || liveItems.length === 0){
+    alert("暂无行情数据可复制");
+    return;
+  }
+
+  const txt = liveItems.map(x=>{
+    return `${x.code} ${x.name} ${x.price} ${x.changePct}% MA5 ${x.ma5 || ""} ${x.volumeText || "正常"} ${x.trendText || "震荡"}`;
+  }).join("\n");
+
+  navigator.clipboard.writeText(txt).then(()=>alert("实时行情文本已复制")).catch(()=>alert(txt));
+}
 
 function getMa5Status(ma5Value){
   const raw = String(ma5Value || "").trim();
@@ -430,15 +593,14 @@ function buildTradePlan(price, ma5, changePct, conclusion, ma5Status, volumeStat
 
 function batchAnalyze(){
   const text = batchInput.value.trim();
-  if(!text){alert("请先粘贴股票数据");return}
+  if(!text){alert("请先粘贴或获取行情数据");return}
 
   const lines = text.split(/\n+/).map(x=>x.trim()).filter(Boolean);
   parsedItems = lines.map(smartParseLine);
   results = parsedItems.map(analyzeStock).filter(x=>x.name && x.name !== "未识别名称");
   results.sort((a,b)=>b.score-a.score);
 
-  localStorage.setItem("stock_results_v378", JSON.stringify(results));
-  localStorage.setItem("stock_parsed_v378", JSON.stringify(parsedItems));
+  localStorage.setItem("stock_results_v379", JSON.stringify(results));
   renderAll();
 }
 
@@ -462,30 +624,36 @@ function renderStats(){
   watchCount.innerText = watch;
   filterCount.innerText = bad;
 
-  const box = finalConclusion;
-  if(total===0){box.className="status warn";box.innerHTML="暂无数据。";return}
+  if(total===0){
+    finalConclusion.className="status warn";
+    finalConclusion.innerHTML="暂无数据。请先获取实时行情。";
+    return;
+  }
 
   if(valid>0){
-    box.className="status good";
-    box.innerHTML=`<b>今日识别 ${total} 只股票，其中 ${valid} 只强势关注。</b><br>系统已生成交易纪律，后续可记录实盘复盘。`;
+    finalConclusion.className="status good";
+    finalConclusion.innerHTML=`<b>今日识别 ${total} 只股票，其中 ${valid} 只强势关注。</b><br>系统已根据实时行情生成交易纪律。`;
   }else if(watch>0){
-    box.className="status warn";
-    box.innerHTML=`<b>今日暂无完全合格强势股，有 ${watch} 只可观察买点。</b><br>只适合等待确认，不适合直接追高。`;
+    finalConclusion.className="status warn";
+    finalConclusion.innerHTML=`<b>今日暂无完全合格强势股，有 ${watch} 只可观察买点。</b><br>只适合等待确认，不适合直接追高。`;
   }else{
-    box.className="status bad";
-    box.innerHTML=`<b>今日暂无合格候选。</b><br>多数股票存在趋势、MA5、量能或涨幅风险，建议谨慎。`;
+    finalConclusion.className="status bad";
+    finalConclusion.innerHTML=`<b>今日暂无合格候选。</b><br>多数股票存在趋势、MA5、量能或涨幅风险，建议谨慎。`;
   }
 }
 
 function renderTop(){
-  const box = topCandidate;
-  if(results.length===0){box.className="status warn";box.innerHTML="暂无候选结果。";return}
+  if(results.length===0){
+    topCandidate.className="status warn";
+    topCandidate.innerHTML="暂无候选结果。";
+    return;
+  }
 
   const top = results[0];
   const p = top.tradePlan;
 
-  box.className = "status " + top.level;
-  box.innerHTML = `
+  topCandidate.className = "status " + top.level;
+  topCandidate.innerHTML = `
     <div class="stock-line">
       <div class="stock-name">${escapeHtml(top.name)}</div>
       <div class="score">${top.score}分</div>
@@ -520,10 +688,12 @@ function renderTop(){
 }
 
 function renderResults(){
-  const box = resultList;
-  if(results.length===0){box.innerHTML=`<div class="status warn">暂无结果。</div>`;return}
+  if(results.length===0){
+    resultList.innerHTML=`<div class="status warn">暂无结果。</div>`;
+    return;
+  }
 
-  box.innerHTML = results.map((r,i)=>{
+  resultList.innerHTML = results.map((r,i)=>{
     const tagClass = r.level==="good"?"green":r.level==="bad"?"red":"yellow";
     const p = r.tradePlan;
 
@@ -567,6 +737,27 @@ function renderResults(){
   }).join("");
 }
 
+function renderFilterReasons(){
+  if(results.length===0){
+    filterReasons.className="status warn";
+    filterReasons.innerHTML="暂无过滤记录。";
+    return;
+  }
+
+  let map = {};
+  results.forEach(r=>r.filters.forEach(f=>map[f]=(map[f]||0)+1));
+  const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]);
+
+  if(entries.length===0){
+    filterReasons.className="status good";
+    filterReasons.innerHTML="暂无明显过滤项。";
+    return;
+  }
+
+  filterReasons.className="status warn";
+  filterReasons.innerHTML = `<b>今日主要过滤原因：</b><ul class="reason-list">${entries.map(([k,v])=>`<li>${escapeHtml(k)}：${v}只</li>`).join("")}</ul>`;
+}
+
 function addReview(){
   const name = reviewName.value.trim();
   const buy = Number(buyPrice.value);
@@ -583,22 +774,15 @@ function addReview(){
   const pnl = round2((sell - buy) * count);
   const pnlPct = round2(((sell - buy) / buy) * 100);
 
-  const item = {
-    name,
-    buy,
-    sell,
-    count,
-    pnl,
-    pnlPct,
+  reviews.unshift({
+    name,buy,sell,count,pnl,pnlPct,
     discipline:disciplineValue,
     disciplineText:getDisciplineText(disciplineValue),
     note,
     time:new Date().toLocaleString()
-  };
+  });
 
-  reviews.unshift(item);
-  localStorage.setItem("stock_reviews_v378", JSON.stringify(reviews));
-
+  localStorage.setItem("stock_reviews_v379", JSON.stringify(reviews));
   clearReviewForm();
   renderReviews();
   renderReviewStats();
@@ -611,14 +795,14 @@ function getDisciplineText(v){
 }
 
 function renderReviews(){
-  const box = reviewList;
+  if(!reviewList) return;
 
   if(reviews.length === 0){
-    box.innerHTML = `<div class="status warn">暂无复盘记录。</div>`;
+    reviewList.innerHTML = `<div class="status warn">暂无复盘记录。</div>`;
     return;
   }
 
-  box.innerHTML = reviews.map((r,i)=>{
+  reviewList.innerHTML = reviews.map((r,i)=>{
     const cls = r.pnl >= 0 ? "profit" : "loss";
     const sign = r.pnl >= 0 ? "+" : "";
     const disciplineTag = r.discipline === "yes" ? "green" : r.discipline === "partial" ? "yellow" : "red";
@@ -659,6 +843,8 @@ function renderReviews(){
 }
 
 function renderReviewStats(){
+  if(!tradeCount) return;
+
   const count = reviews.length;
   tradeCount.innerText = count;
 
@@ -681,7 +867,7 @@ function renderReviewStats(){
 
 function deleteReview(i){
   reviews.splice(i,1);
-  localStorage.setItem("stock_reviews_v378", JSON.stringify(reviews));
+  localStorage.setItem("stock_reviews_v379", JSON.stringify(reviews));
   renderReviews();
   renderReviewStats();
 }
@@ -698,24 +884,10 @@ function clearReviewForm(){
 function clearReviews(){
   if(confirm("确定清空所有复盘记录吗？")){
     reviews = [];
-    localStorage.removeItem("stock_reviews_v378");
+    localStorage.removeItem("stock_reviews_v379");
     renderReviews();
     renderReviewStats();
   }
-}
-
-function renderFilterReasons(){
-  const box = filterReasons;
-  if(results.length===0){box.className="status warn";box.innerHTML="暂无过滤记录。";return}
-
-  let map = {};
-  results.forEach(r=>r.filters.forEach(f=>map[f]=(map[f]||0)+1));
-  const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]);
-
-  if(entries.length===0){box.className="status good";box.innerHTML="暂无明显过滤项。";return}
-
-  box.className="status warn";
-  box.innerHTML = `<b>今日主要过滤原因：</b><ul class="reason-list">${entries.map(([k,v])=>`<li>${escapeHtml(k)}：${v}只</li>`).join("")}</ul>`;
 }
 
 function buildTradePlanText(){
@@ -731,98 +903,4 @@ function buildTradePlanText(){
   results.slice(0,5).forEach((r,i)=>{
     const p = r.tradePlan;
     txt += `${i+1}. ${r.name}｜${r.score}分｜${r.conclusion}\n`;
-    txt += `当前价:${safe(r.price)}｜涨幅:${safe(r.changePct)}%｜MA5:${r.ma5Status.status}\n`;
-    txt += `低吸区:${p.buyLow}-${p.buyHigh}｜止损:${p.stopLoss}｜止盈1:${p.takeProfit1}｜止盈2:${p.takeProfit2}\n`;
-    txt += `仓位:${p.position}｜做T:${p.tStatus}\n\n`;
-  });
-
-  txt += `【纪律提醒】\n`;
-  txt += `不追高，不重仓，不硬扛。强势关注不等于立即买入，必须等待承接、量能、回踩确认。\n`;
-  return txt;
-}
-
-function buildReviewSummary(){
-  if(reviews.length === 0) return "暂无复盘记录。";
-
-  const count = reviews.length;
-  const wins = reviews.filter(x=>x.pnl > 0).length;
-  const total = round2(reviews.reduce((sum,x)=>sum + Number(x.pnl || 0),0));
-  const disciplineYes = reviews.filter(x=>x.discipline === "yes").length;
-  const winRateValue = round2(wins / count * 100);
-  const disciplineRateValue = round2(disciplineYes / count * 100);
-
-  let txt = `【实盘交易复盘总结】\n`;
-  txt += `交易次数：${count}次\n`;
-  txt += `胜率：${winRateValue}%\n`;
-  txt += `总盈亏：${total}\n`;
-  txt += `纪律执行率：${disciplineRateValue}%\n\n`;
-
-  txt += `【最近记录】\n`;
-  reviews.slice(0,10).forEach((r,i)=>{
-    const sign = r.pnl >= 0 ? "+" : "";
-    txt += `${i+1}. ${r.name}｜买:${r.buy}｜卖:${r.sell}｜股数:${r.count}｜盈亏:${sign}${r.pnl}｜${sign}${r.pnlPct}%｜${r.disciplineText}\n`;
-  });
-
-  txt += `\n【复盘重点】\n`;
-  txt += `重点检查：是否追高、是否重仓、是否硬扛、是否按止损执行、是否因为情绪改变计划。\n`;
-  return txt;
-}
-
-function copyTradePlan(){
-  const txt = buildTradePlanText();
-  navigator.clipboard.writeText(txt).then(()=>alert("交易计划已复制")).catch(()=>alert(txt));
-}
-
-function copyReviewSummary(){
-  const txt = buildReviewSummary();
-  navigator.clipboard.writeText(txt).then(()=>alert("复盘总结已复制")).catch(()=>alert(txt));
-}
-
-function fillDemo(){
-  batchInput.value =
-`300592 华凯易佰 12.35 +3.2% MA5 11.8 放量 向上
-002xxx 示例股票A 8.66 +6.5% MA5 8.20 缩量 震荡
-688xxx 示例股票B 20.15 -1.2% MA5 21.00 正常 走弱
-300xxx 示例股票C, 15.80, 4.6, 15.20, 放量, 向上
-600xxx 示例股票D 当前价6.25 涨幅9.8% MA5 5.90 放量 向上`;
-}
-
-function clearMarketData(){
-  if(confirm("确定清空行情数据吗？复盘记录不会删除。")){
-    results=[];parsedItems=[];batchInput.value="";
-    localStorage.removeItem("stock_results_v378");
-    localStorage.removeItem("stock_parsed_v378");
-    renderAll();
-  }
-}
-
-function round2(n){
-  if(!Number.isFinite(n)) return "";
-  return Math.round(n * 100) / 100;
-}
-
-function safe(v){
-  if(v===""||v===null||v===undefined||!Number.isFinite(Number(v))) return "未知";
-  return v;
-}
-
-function escapeHtml(str){
-  return String(str ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-try{
-  const saved = localStorage.getItem("stock_results_v378");
-  const parsed = localStorage.getItem("stock_parsed_v378");
-  if(saved) results = JSON.parse(saved);
-  if(parsed) parsedItems = JSON.parse(parsed);
-}catch(e){}
-
-renderAll();
-</script>
-</body>
-</html>
+    txt += `当前价:${safe(r.price
